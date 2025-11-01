@@ -1,0 +1,19 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/images/*", "/css/*", "/js/*", "/favicon.ico", "/api/*"]
+  },
+  "routes": [
+    {
+      "route": "/api/*",
+      "allowedRoles": ["anonymous"],
+      "rewrite": "https://api.fieldalpha.io/api/:*"
+    }
+  ],
+  "globalHeaders": {
+    "Access-Control-Allow-Credentials": "true"
+  }
+}
+
+
+
