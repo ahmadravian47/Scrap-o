@@ -38,9 +38,10 @@ const Box = () => {
     marginTop: "-5rem",
     zIndex: "2",
     borderTop: "1px solid #f4f2f2ff",
-    boxShadow: "0px 25px 80px rgba(0,0,0,0.18)" // ⬅ makes shadow bulky
+    boxShadow: "0px 25px 60px 20px rgba(128, 128, 128, 0.28)" // BULKY
   }}
 >
+
 
       <div className="relative">
         <div

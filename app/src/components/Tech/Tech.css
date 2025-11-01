@@ -1,0 +1,13 @@
+.logo_images{
+    width: 40%;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1rem;
+}
+.logo_images .image{
+    width: 48px;
+}
+.logo_images .image img{
+    width: 100%;
+}
