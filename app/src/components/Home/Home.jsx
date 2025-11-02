@@ -5,6 +5,7 @@ import Dots from '../Dots/Dots'
 import Section1 from '../Section1/Section1'
 import Box from '../Box/Box'
 import Tech from '../Tech/Tech'
+import Features from '../Features/Features'
 
 export default function Home() {
   return (
@@ -13,9 +14,9 @@ export default function Home() {
       <Hero />
       <Dots marginTop="-1.3rem" />
       <Section1></Section1>
-    
       <Box />
       <Tech />
+       <Features />
     </div>
   )
 }
