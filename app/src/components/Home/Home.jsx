@@ -6,6 +6,7 @@ import Section1 from '../Section1/Section1'
 import Box from '../Box/Box'
 import Tech from '../Tech/Tech'
 import Features from '../Features/Features'
+import Faqs from '../Faqs/Faqs'
 
 export default function Home() {
   return (
@@ -17,6 +18,7 @@ export default function Home() {
       <Box />
       <Tech />
        <Features />
+       <Faqs />
     </div>
   )
 }
