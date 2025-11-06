@@ -7,6 +7,7 @@ import Box from '../Box/Box'
 import Tech from '../Tech/Tech'
 import Features from '../Features/Features'
 import Faqs from '../Faqs/Faqs'
+import Footer from '../Footer/Footer'
 
 export default function Home() {
   return (
@@ -17,8 +18,9 @@ export default function Home() {
       <Section1></Section1>
       <Box />
       <Tech />
-       <Features />
-       <Faqs />
+      <Features />
+      <Faqs />
+      <Footer />
     </div>
   )
 }
