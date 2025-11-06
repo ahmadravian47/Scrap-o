@@ -22,15 +22,15 @@ export default function Navbar() {
 
                 {/* Auth Buttons */}
                 <div className="flex items-center gap-4 ml-8 text-gray-900" style={{ fontSize: '14px' }}>
-                    <button
+                    <Link to='/login'
                         className="px-4 py-2 rounded-md shadow-sm hover:shadow-md transition bg-[#fafafa] focus:outline-none focus:ring-1"
                     >
                         Log in
-                    </button>
+                    </Link>
 
-                    <button className="px-3 py-2 bg-[#171717] text-white rounded-md hover:opacity-90 transition">
+                    <Link to='/signup' className="px-3 py-2 bg-[#171717] text-white rounded-md hover:opacity-90 transition">
                         Sign up
-                    </button>
+                    </Link>
                 </div>
 
             </div>
