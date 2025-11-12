@@ -139,20 +139,27 @@ export default function Leads() {
         <div className="w-full">
           {loading && <p className="text-gray-500 mb-4">Loading leads...</p>}
           {!loading && leads.length === 0 && <p className="text-gray-500 mb-4">No leads found yet.</p>}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {leads.map((lead, idx) => (
-              <div key={idx} className="bg-white border border-gray-200 rounded-xl shadow p-4 flex flex-col gap-2">
-                <h3 className="text-gray-800 font-semibold">{lead.name || 'No name'}</h3>
-                <p className="text-gray-600 text-sm">Rating: {lead.rating || 'N/A'}</p>
-                <p className="text-gray-600 text-sm">Location: {lead.location || 'N/A'}</p>
-                {lead.url && (
-                  <a href={lead.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline">
-                    View on Google Maps
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
+       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  {leads.map((lead, idx) => (
+    <div key={idx} className="bg-white border border-gray-200 rounded-xl shadow p-4 flex flex-col gap-2">
+      <h3 className="text-gray-800 font-semibold">{lead.name || 'No name'}</h3>
+      <p className="text-gray-600 text-sm">Rating: {lead.rating || 'N/A'}</p>
+      {lead.phone && <p className="text-gray-600 text-sm">Phone: {lead.phone}</p>}
+      {lead.address && <p className="text-gray-600 text-sm">Address: {lead.address}</p>}
+      {lead.url && (
+        <a 
+          href={lead.url} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-blue-500 text-sm hover:underline"
+        >
+          View on Google Maps
+        </a>
+      )}
+    </div>
+  ))}
+</div>
+
         </div>
 
       </div>
