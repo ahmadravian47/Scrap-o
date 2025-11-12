@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, Smartphone } from 'lucide-react';
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import google_icon from './search.png'
 import logo from './logo.png'
 
@@ -10,13 +10,27 @@ const Signup = () => {
     const [emailOrPhone, setEmailOrPhone] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const navigate = useNavigate();
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // In a real application, you would handle the signup logic here
-        console.log('Signup attempt:', { name, emailOrPhone, password });
-        alert('Form submitted! (Check console for data)');
+
+        const res = await fetch(`${import.meta.env.VITE_SERVER_URL}/signup`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, emailOrPhone, password }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success) {
+            navigate("/dashboard");
+        } else {
+            alert(data.error || "Signup failed");
+        }
+       
     };
+
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col items-center pt-20">
@@ -109,6 +123,7 @@ const Signup = () => {
 
                 {/* --- Google Login Button --- */}
                 <button
+                    onClick={() => window.location.href = `${import.meta.env.VITE_SERVER_URL}/auth/google`}
                     className="w-full mx-auto font-medium flex items-center justify-center border border-gray-300 py-2 rounded-lg hover:bg-gray-100 transition"
                 >
                     <img src={google_icon} style={{ width: '14px', marginRight: '0.5rem' }} alt="Google" />
