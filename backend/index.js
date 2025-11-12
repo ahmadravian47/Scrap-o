@@ -12,6 +12,7 @@ const jwt = require("jsonwebtoken");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const MongoStore = require('connect-mongo');
+const { chromium } = require("playwright");
 
 require("./passport");
 
@@ -160,4 +161,78 @@ app.post("/signup", async (req, res) => {
         res.status(500).json({ error: "Server error" });
     }
 });
+
+
+app.post("/scrape", async (req, res) => {
+  const { query } = req.body;
+  console.log(`🟦 Incoming scrape request for query: "${query}"`);
+
+  let browser;
+  try {
+    console.log("🟨 Launching Chromium...");
+    browser = await chromium.launch({
+      headless: true,
+      executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", // using installed Chrome
+    });
+
+    const page = await browser.newPage();
+
+    const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
+    console.log(`🟨 Navigating to Google Maps: ${searchUrl}`);
+
+    await page.goto(searchUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000,
+    });
+
+    console.log("🟦 Waiting for sidebar results panel...");
+    const scrollableSelector = 'div[role="feed"][aria-label^="Results for"]';
+    await page.waitForSelector(scrollableSelector, { timeout: 20000 });
+    console.log("✅ Sidebar loaded!");
+
+    // Scroll to load multiple results
+    console.log("🟨 Starting scroll to load results...");
+    const scrollResults = await page.evaluate(async (selector) => {
+      const scrollable = document.querySelector(selector);
+      if (!scrollable) return false;
+      for (let i = 0; i < 6; i++) {
+        scrollable.scrollBy(0, 500);
+        await new Promise(resolve => setTimeout(resolve, 700));
+      }
+      return true;
+    }, scrollableSelector);
+
+    if (!scrollResults) {
+      console.log("❌ Scrollable panel not found — Google Maps may have changed UI.");
+    } else {
+      console.log("✅ Finished scrolling, waiting a bit for results...");
+      await page.waitForTimeout(1500);
+    }
+
+    console.log("🟦 Extracting business cards...");
+    const cardSelector = '.Nv2PK.THOPZb.CpccDe';
+    const results = await page.$$eval(cardSelector, (cards) =>
+      cards.map(el => ({
+        name: el.querySelector('.qBF1Pd.fontHeadlineSmall')?.innerText || '',
+        rating: el.querySelector('.MW4etd')?.innerText || '',
+        reviews: el.querySelector('.UY7F9')?.innerText || '',
+        address: Array.from(el.querySelectorAll('.W4Efsd span')).pop()?.innerText || ''
+      }))
+    );
+
+    console.log(`✅ Extracted ${results.length} leads.`);
+    res.json({ leads: results });
+
+  } catch (error) {
+    console.error("🔴 SCRAPER ERROR:", error);
+    res.status(500).json({ error: error.toString() });
+
+  } finally {
+    if (browser) {
+      console.log("🟧 Closing browser...");
+      await browser.close();
+    }
+  }
+});
+
 
