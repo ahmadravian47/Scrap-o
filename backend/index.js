@@ -211,30 +211,34 @@ app.post("/scrape", async (req, res) => {
 
     console.log("🟦 Extracting business cards...");
     const cardSelector = '.Nv2PK.THOPZb.CpccDe';
-    const results = await page.$$eval('.Nv2PK.THOPZb.CpccDe', (cards) =>
-      cards.map(el => {
-        // Name
-        const name = el.querySelector('.qBF1Pd.fontHeadlineSmall')?.innerText || '';
+const results = await page.$$eval('.Nv2PK.THOPZb.CpccDe', (cards) =>
+  cards.map(el => {
+    const name = el.querySelector('.qBF1Pd.fontHeadlineSmall')?.innerText || '';
+    const rating = el.querySelector('.MW4etd')?.innerText || '';
 
-        // Rating
-        const rating = el.querySelector('.MW4etd')?.innerText || '';
+    // Address
+    const addressEl = Array.from(el.querySelectorAll('.W4Efsd span'))
+      .find(span => /\d{1,5}\s+\w+/.test(span.innerText));
+    const address = addressEl?.innerText || '';
 
-        // Address
-        const addressEl = Array.from(el.querySelectorAll('.W4Efsd span'))
-          .find(span => /\d{1,5}\s+\w+/.test(span.innerText)); // crude check for street number
-        const address = addressEl?.innerText || '';
+    // Phone
+    const phoneEl = Array.from(el.querySelectorAll('.W4Efsd span'))
+      .find(span => /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(span.innerText));
+    const phone = phoneEl?.innerText || '';
 
-        // Phone number
-        const phoneEl = Array.from(el.querySelectorAll('.W4Efsd span'))
-          .find(span => /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(span.innerText));
-        const phone = phoneEl?.innerText || '';
+    // Robust URL extraction
+    let url = '';
+    const linkEl = el.querySelector('a[href*="/maps/place/"]');
+    if (linkEl) {
+      url = linkEl.href;
+    } else if (el.dataset && el.dataset.href) {
+      url = el.dataset.href;
+    }
 
-        // Google Maps URL
-        const url = el.querySelector('a[href*="maps.google.com"]')?.href || '';
+    return { name, rating, address, phone, url };
+  })
+);
 
-        return { name, rating, address, phone, url };
-      })
-    );
 
 
     console.log(`✅ Extracted ${results.length} leads.`);
