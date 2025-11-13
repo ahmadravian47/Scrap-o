@@ -163,11 +163,121 @@ app.post("/signup", async (req, res) => {
 });
 
 
+// app.post("/scrape", async (req, res) => {
+//   const { query } = req.body;
+//   console.log(`🟦 Incoming scrape request for query: "${query}"`);
+
+//   let browser;
+//   try {
+//     console.log("🟨 Launching Chromium...");
+//     browser = await chromium.launch({
+//       headless: true,
+//       executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", // Adjust path if needed
+//     });
+
+//     const page = await browser.newPage();
+
+//     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
+//     console.log(`🟨 Navigating to Google Maps: ${searchUrl}`);
+
+//     await page.goto(searchUrl, {
+//       waitUntil: "domcontentloaded",
+//       timeout: 60000,
+//     });
+
+//     console.log("🟦 Waiting for result links (.hfpxzc)...");
+//     await page.waitForSelector('a.hfpxzc', { timeout: 20000 });
+//     console.log("✅ Result links loaded!");
+
+//     // Scroll to load multiple results (optional but helpful)
+//     console.log("🟨 Scrolling to load more results...");
+//     const scrollResults = await page.evaluate(async () => {
+//       const scrollable = document.querySelector('div[role="feed"]') || document.body;
+//       for (let i = 0; i < 6; i++) {
+//         scrollable.scrollBy(0, 800);
+//         await new Promise(resolve => setTimeout(resolve, 700));
+//       }
+//       return true;
+//     });
+
+//     await page.waitForTimeout(1500);
+
+//     console.log("🟦 Extracting business URLs from .hfpxzc links...");
+//     const businessLinks = await page.$$eval('a.hfpxzc', (anchors) =>
+//       anchors.map(a => ({
+//         name: a.getAttribute('aria-label') || '',
+//         url: a.href,
+//       }))
+//     );
+
+//     console.log(`✅ Found ${businessLinks.length} business URLs.`);
+
+//     // Now open each business link and fetch details
+//     const detailPage = await browser.newPage();
+//     const results = [];
+
+//     for (let i = 0; i < businessLinks.length; i++) {
+//       const biz = businessLinks[i];
+//       console.log(`🟨 Visiting ${biz.name} → ${biz.url}`);
+
+//       try {
+//         await detailPage.goto(biz.url, { waitUntil: "domcontentloaded", timeout: 30000 });
+
+//         // Extract details
+//         const nameSelector = '.DUwDvf.fontHeadlineLarge';
+//         const ratingSelector = '.F7nice.mmu3tf span[aria-hidden="true"]';
+//         const addressSelector = '.rogA2c .Io6YTe.fontBodyMedium.kR99db.fdkmkc';
+
+//         await detailPage.waitForSelector(nameSelector, { timeout: 15000 });
+
+//         const data = await detailPage.evaluate((nameSel, ratingSel, addrSel) => {
+//           const name = document.querySelector(nameSel)?.innerText || '';
+//           const rating = document.querySelector(ratingSel)?.innerText || '';
+//           const address = document.querySelector(addrSel)?.innerText || '';
+//           return { name, rating, address };
+//         }, nameSelector, ratingSelector, addressSelector);
+
+//         results.push({
+//           name: data.name || biz.name,
+//           rating: data.rating,
+//           address: data.address,
+//           url: biz.url,
+//         });
+
+//         console.log(`✅ Extracted: ${data.name} | ${data.rating} | ${data.address}`);
+//         await detailPage.waitForTimeout(1000 + Math.random() * 1500);
+
+//       } catch (err) {
+//         console.log(`❌ Failed to scrape ${biz.name}: ${err.message}`);
+//       }
+//     }
+
+//     await detailPage.close();
+//     console.log("✅ Finished scraping all business pages.");
+
+//     res.json({ leads: results });
+
+//   } catch (error) {
+//     console.error("🔴 SCRAPER ERROR:", error);
+//     res.status(500).json({ error: error.toString() });
+
+//   } finally {
+//     if (browser) {
+//       console.log("🟧 Closing browser...");
+//       await browser.close();
+//     }
+//   }
+// });
+
+
+
 app.post("/scrape", async (req, res) => {
   const { query } = req.body;
   console.log(`🟦 Incoming scrape request for query: "${query}"`);
 
   let browser;
+  const results = [];
+
   try {
     console.log("🟨 Launching Chromium...");
     browser = await chromium.launch({
@@ -185,69 +295,111 @@ app.post("/scrape", async (req, res) => {
       timeout: 60000,
     });
 
-    console.log("🟦 Waiting for sidebar results panel...");
+    // Wait for initial results to load
+    const resultsSelector = "a.hfpxzc";
+    await page.waitForSelector(resultsSelector, { timeout: 30000 });
+    console.log("✅ Found initial business results!");
+
+    // Scroll to load more
     const scrollableSelector = 'div[role="feed"][aria-label^="Results for"]';
-    await page.waitForSelector(scrollableSelector, { timeout: 20000 });
-    console.log("✅ Sidebar loaded!");
-
-    // Scroll to load multiple results
-    console.log("🟨 Starting scroll to load results...");
-    const scrollResults = await page.evaluate(async (selector) => {
-      const scrollable = document.querySelector(selector);
-      if (!scrollable) return false;
-      for (let i = 0; i < 6; i++) {
-        scrollable.scrollBy(0, 500);
-        await new Promise(resolve => setTimeout(resolve, 700));
+    console.log("🟨 Scrolling results to load more...");
+    await page.evaluate(async (selector) => {
+      const el = document.querySelector(selector);
+      if (!el) return;
+      for (let i = 0; i < 8; i++) {
+        el.scrollBy(0, 600);
+        await new Promise((r) => setTimeout(r, 800));
       }
-      return true;
     }, scrollableSelector);
+    await page.waitForTimeout(2000);
+    console.log("✅ Finished scrolling.");
 
-    if (!scrollResults) {
-      console.log("❌ Scrollable panel not found — Google Maps may have changed UI.");
-    } else {
-      console.log("✅ Finished scrolling, waiting a bit for results...");
-      await page.waitForTimeout(1500);
+    // Extract business URLs
+    const businessLinks = await page.$$eval(resultsSelector, (links) =>
+      links.map((a) => ({
+        name: a.getAttribute("aria-label") || "",
+        url: a.href,
+      }))
+    );
+
+    console.log(`🟦 Found ${businessLinks.length} business links.`);
+
+    const detailPage = await browser.newPage();
+
+    for (let i = 0; i < businessLinks.length; i++) {
+      const biz = businessLinks[i];
+      console.log(`🟨 Visiting ${biz.name} → ${biz.url}`);
+
+      try {
+        await detailPage.goto(biz.url, {
+          waitUntil: "domcontentloaded",
+          timeout: 45000,
+        });
+
+        const selectors = {
+          nameMain: ".DUwDvf.fontHeadlineLarge",
+          nameAlt: ".x3AX1-LfntMc-header-title-title",
+          rating: ".F7nice > span:first-child > span[aria-hidden='true']",
+          address: ".rogA2c .Io6YTe.fontBodyMedium.kR99db.fdkmkc",
+        };
+
+        // Wait for one of the possible name selectors
+        try {
+          await detailPage.waitForSelector(
+            `${selectors.nameMain}, ${selectors.nameAlt}`,
+            { timeout: 30000 }
+          );
+        } catch {
+          console.log(`⚠️ ${biz.name}: selector not found, reloading...`);
+          await detailPage.reload({ waitUntil: "domcontentloaded" });
+          await detailPage.waitForTimeout(3000);
+        }
+
+        // Extract business details
+        const data = await detailPage.evaluate((s) => {
+          const nameEl =
+            document.querySelector(s.nameMain) ||
+            document.querySelector(s.nameAlt);
+          const name = nameEl?.innerText || "";
+
+          const rating =
+            document.querySelector(s.rating)?.textContent?.trim() || "";
+          const address =
+            document.querySelector(s.address)?.textContent?.trim() || "";
+
+          return { name, rating, address };
+        }, selectors);
+
+        results.push({
+          name: data.name || biz.name,
+          rating: data.rating || "",
+          address: data.address || "",
+          url: biz.url,
+        });
+
+        console.log(
+          `✅ ${data.name || biz.name} | Rating: ${data.rating} | Address: ${
+            data.address
+          }`
+        );
+
+        await detailPage.waitForTimeout(1000 + Math.random() * 1500);
+      } catch (err) {
+        console.log(`❌ Failed to scrape ${biz.name}: ${err.message}`);
+        results.push({
+          name: biz.name,
+          rating: "",
+          address: "",
+          url: biz.url,
+        });
+      }
     }
 
-    console.log("🟦 Extracting business cards...");
-    const cardSelector = '.Nv2PK.THOPZb.CpccDe';
-const results = await page.$$eval('.Nv2PK.THOPZb.CpccDe', (cards) =>
-  cards.map(el => {
-    const name = el.querySelector('.qBF1Pd.fontHeadlineSmall')?.innerText || '';
-    const rating = el.querySelector('.MW4etd')?.innerText || '';
-
-    // Address
-    const addressEl = Array.from(el.querySelectorAll('.W4Efsd span'))
-      .find(span => /\d{1,5}\s+\w+/.test(span.innerText));
-    const address = addressEl?.innerText || '';
-
-    // Phone
-    const phoneEl = Array.from(el.querySelectorAll('.W4Efsd span'))
-      .find(span => /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(span.innerText));
-    const phone = phoneEl?.innerText || '';
-
-    // Robust URL extraction
-    let url = '';
-    const linkEl = el.querySelector('a[href*="/maps/place/"]');
-    if (linkEl) {
-      url = linkEl.href;
-    } else if (el.dataset && el.dataset.href) {
-      url = el.dataset.href;
-    }
-
-    return { name, rating, address, phone, url };
-  })
-);
-
-
-
-    console.log(`✅ Extracted ${results.length} leads.`);
+    console.log(`✅ Extracted ${results.length} businesses.`);
     res.json({ leads: results });
-
   } catch (error) {
     console.error("🔴 SCRAPER ERROR:", error);
     res.status(500).json({ error: error.toString() });
-
   } finally {
     if (browser) {
       console.log("🟧 Closing browser...");
@@ -255,5 +407,8 @@ const results = await page.$$eval('.Nv2PK.THOPZb.CpccDe', (cards) =>
     }
   }
 });
+
+
+
 
 
