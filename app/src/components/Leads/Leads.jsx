@@ -48,7 +48,7 @@ export default function Leads() {
         body: JSON.stringify({ query: searchQuery }),
       });
       const data = await res.json();
-      console.log('Data',data);
+      console.log('Data', data);
       setLeads(data.leads || []);
     } catch (err) {
       console.error("Error fetching leads:", err);
@@ -147,6 +147,7 @@ export default function Leads() {
                 <p className="text-gray-600 text-sm">Rating: {lead.rating || 'N/A'}</p>
                 {lead.phone && <p className="text-gray-600 text-sm">Phone: {lead.phone}</p>}
                 {lead.address && <p className="text-gray-600 text-sm">Address: {lead.address}</p>}
+                {lead.website && <p className="text-gray-600 text-sm">Website: {lead.website}</p>}
                 {lead.url && (
                   <a
                     href={lead.url}

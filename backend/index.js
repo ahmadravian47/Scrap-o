@@ -276,17 +276,14 @@ app.post("/scrape", async (req, res) => {
   console.log(`🟦 Incoming scrape request for query: "${query}"`);
 
   let browser;
-  const results = [];
-
   try {
     console.log("🟨 Launching Chromium...");
     browser = await chromium.launch({
       headless: true,
-      executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", // using installed Chrome
+      executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
     });
 
     const page = await browser.newPage();
-
     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
     console.log(`🟨 Navigating to Google Maps: ${searchUrl}`);
 
@@ -295,107 +292,110 @@ app.post("/scrape", async (req, res) => {
       timeout: 60000,
     });
 
-    // Wait for initial results to load
-    const resultsSelector = "a.hfpxzc";
-    await page.waitForSelector(resultsSelector, { timeout: 30000 });
-    console.log("✅ Found initial business results!");
+    await page.waitForSelector('div[role="feed"], a.hfpxzc', { timeout: 30000 });
+    console.log("✅ Sidebar loaded!");
 
-    // Scroll to load more
-    const scrollableSelector = 'div[role="feed"][aria-label^="Results for"]';
-    console.log("🟨 Scrolling results to load more...");
-    await page.evaluate(async (selector) => {
-      const el = document.querySelector(selector);
-      if (!el) return;
-      for (let i = 0; i < 8; i++) {
-        el.scrollBy(0, 600);
+    // Scroll to load more results
+    console.log("🟨 Scrolling to load all results...");
+    await page.evaluate(async () => {
+      const scrollable = document.querySelector('div[role="feed"]');
+      if (!scrollable) return;
+      for (let i = 0; i < 10; i++) {
+        scrollable.scrollBy(0, 1000);
         await new Promise((r) => setTimeout(r, 800));
       }
-    }, scrollableSelector);
+    });
     await page.waitForTimeout(2000);
-    console.log("✅ Finished scrolling.");
 
-    // Extract business URLs
-    const businessLinks = await page.$$eval(resultsSelector, (links) =>
-      links.map((a) => ({
-        name: a.getAttribute("aria-label") || "",
-        url: a.href,
+    console.log("🟦 Extracting business URLs...");
+    const businessLinks = await page.$$eval('a.hfpxzc', (links) =>
+      links.map((el) => ({
+        name: el.getAttribute("aria-label") || "",
+        url: el.href || "",
       }))
     );
 
-    console.log(`🟦 Found ${businessLinks.length} business links.`);
+    console.log(`✅ Found ${businessLinks.length} business URLs.`);
+    const results = [];
 
-    const detailPage = await browser.newPage();
-
-    for (let i = 0; i < businessLinks.length; i++) {
-      const biz = businessLinks[i];
+    for (const biz of businessLinks) {
       console.log(`🟨 Visiting ${biz.name} → ${biz.url}`);
+      const detailPage = await browser.newPage();
 
       try {
-        await detailPage.goto(biz.url, {
-          waitUntil: "domcontentloaded",
-          timeout: 45000,
-        });
+        await detailPage.goto(biz.url, { waitUntil: "domcontentloaded", timeout: 60000 });
+        await detailPage.waitForTimeout(4000); // let Maps render everything
 
         const selectors = {
           nameMain: ".DUwDvf.fontHeadlineLarge",
           nameAlt: ".x3AX1-LfntMc-header-title-title",
           rating: ".F7nice > span:first-child > span[aria-hidden='true']",
           address: ".rogA2c .Io6YTe.fontBodyMedium.kR99db.fdkmkc",
+          websiteBlock: 'a[aria-label^="Website:"] .Io6YTe.fontBodyMedium.kR99db.fdkmkc',
+          phoneBlock: 'button[aria-label^="Phone:"] .Io6YTe.fontBodyMedium.kR99db.fdkmkc',
         };
 
-        // Wait for one of the possible name selectors
+        // Wait for any meaningful element to appear
         try {
           await detailPage.waitForSelector(
-            `${selectors.nameMain}, ${selectors.nameAlt}`,
-            { timeout: 30000 }
+            `${selectors.nameMain}, ${selectors.nameAlt}, ${selectors.address}, ${selectors.rating}`,
+            { timeout: 20000 }
           );
         } catch {
-          console.log(`⚠️ ${biz.name}: selector not found, reloading...`);
+          console.log(`⚠️ ${biz.name}: selector not found, retrying...`);
           await detailPage.reload({ waitUntil: "domcontentloaded" });
-          await detailPage.waitForTimeout(3000);
+          await detailPage.waitForTimeout(5000);
         }
 
-        // Extract business details
         const data = await detailPage.evaluate((s) => {
-          const nameEl =
-            document.querySelector(s.nameMain) ||
-            document.querySelector(s.nameAlt);
-          const name = nameEl?.innerText || "";
+          const clean = (t) => (t ? t.toString().trim() : "");
 
-          const rating =
-            document.querySelector(s.rating)?.textContent?.trim() || "";
-          const address =
-            document.querySelector(s.address)?.textContent?.trim() || "";
+          const nameEl = document.querySelector(s.nameMain) || document.querySelector(s.nameAlt);
+          const name = clean(nameEl?.innerText);
 
-          return { name, rating, address };
+          const ratingEl = document.querySelector(s.rating);
+          const rating = clean(ratingEl?.textContent);
+
+          const addressEl = document.querySelector(s.address);
+          const address = clean(addressEl?.textContent);
+
+          const websiteEl = document.querySelector(s.websiteBlock);
+          const website = clean(websiteEl?.innerText);
+
+          const phoneEl = document.querySelector(s.phoneBlock);
+          const phone = clean(phoneEl?.innerText);
+
+          return { name, rating, address, website, phone };
         }, selectors);
 
         results.push({
           name: data.name || biz.name,
           rating: data.rating || "",
           address: data.address || "",
+          website: data.website || "",
+          phone: data.phone || "",
           url: biz.url,
         });
 
         console.log(
-          `✅ ${data.name || biz.name} | Rating: ${data.rating} | Address: ${
-            data.address
-          }`
+          `✅ ${data.name || biz.name} | ⭐ ${data.rating} | 📍 ${data.address} | ☎️ ${data.phone} | 🌐 ${data.website}`
         );
-
-        await detailPage.waitForTimeout(1000 + Math.random() * 1500);
       } catch (err) {
         console.log(`❌ Failed to scrape ${biz.name}: ${err.message}`);
         results.push({
           name: biz.name,
           rating: "",
           address: "",
+          website: "",
+          phone: "",
           url: biz.url,
         });
+      } finally {
+        await detailPage.close();
       }
     }
 
-    console.log(`✅ Extracted ${results.length} businesses.`);
+    console.log(`✅ Scraping completed. Extracted ${results.length} total leads.`);
     res.json({ leads: results });
   } catch (error) {
     console.error("🔴 SCRAPER ERROR:", error);
@@ -407,6 +407,7 @@ app.post("/scrape", async (req, res) => {
     }
   }
 });
+
 
 
 
