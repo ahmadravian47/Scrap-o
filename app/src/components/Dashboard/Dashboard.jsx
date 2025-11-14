@@ -11,7 +11,8 @@ import leadsIcon from "../Dashboard/leads.png";
 import teamsIcon from "../Dashboard/teams.png";
 import emailIcon from "../Dashboard/email.png";
 import settingsIcon from "../Dashboard/settings.png";
-import logoutIcon from "../Dashboard/settings.png";
+import logoutIcon from "../Dashboard/power-off.png";
+
 
 export default function Dashboard() {
   const [activeComponent, setActiveComponent] = useState("Leads");
@@ -80,7 +81,7 @@ export default function Dashboard() {
         </div>
         <hr />
 
-        <button className={`sidebar-btn ${activeComponent === "Leads" ? "active" : ""}`} style={{marginTop:'2rem'}}
+        <button className={`sidebar-btn ${activeComponent === "Leads" ? "active" : ""}`} style={{marginTop:'4rem'}}
           onClick={() => setActiveComponent("Leads")}
         >
           <img src={leadsIcon} alt="Leads" className="icon" />

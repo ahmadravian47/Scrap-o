@@ -163,114 +163,6 @@ app.post("/signup", async (req, res) => {
 });
 
 
-// app.post("/scrape", async (req, res) => {
-//   const { query } = req.body;
-//   console.log(`🟦 Incoming scrape request for query: "${query}"`);
-
-//   let browser;
-//   try {
-//     console.log("🟨 Launching Chromium...");
-//     browser = await chromium.launch({
-//       headless: true,
-//       executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", // Adjust path if needed
-//     });
-
-//     const page = await browser.newPage();
-
-//     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
-//     console.log(`🟨 Navigating to Google Maps: ${searchUrl}`);
-
-//     await page.goto(searchUrl, {
-//       waitUntil: "domcontentloaded",
-//       timeout: 60000,
-//     });
-
-//     console.log("🟦 Waiting for result links (.hfpxzc)...");
-//     await page.waitForSelector('a.hfpxzc', { timeout: 20000 });
-//     console.log("✅ Result links loaded!");
-
-//     // Scroll to load multiple results (optional but helpful)
-//     console.log("🟨 Scrolling to load more results...");
-//     const scrollResults = await page.evaluate(async () => {
-//       const scrollable = document.querySelector('div[role="feed"]') || document.body;
-//       for (let i = 0; i < 6; i++) {
-//         scrollable.scrollBy(0, 800);
-//         await new Promise(resolve => setTimeout(resolve, 700));
-//       }
-//       return true;
-//     });
-
-//     await page.waitForTimeout(1500);
-
-//     console.log("🟦 Extracting business URLs from .hfpxzc links...");
-//     const businessLinks = await page.$$eval('a.hfpxzc', (anchors) =>
-//       anchors.map(a => ({
-//         name: a.getAttribute('aria-label') || '',
-//         url: a.href,
-//       }))
-//     );
-
-//     console.log(`✅ Found ${businessLinks.length} business URLs.`);
-
-//     // Now open each business link and fetch details
-//     const detailPage = await browser.newPage();
-//     const results = [];
-
-//     for (let i = 0; i < businessLinks.length; i++) {
-//       const biz = businessLinks[i];
-//       console.log(`🟨 Visiting ${biz.name} → ${biz.url}`);
-
-//       try {
-//         await detailPage.goto(biz.url, { waitUntil: "domcontentloaded", timeout: 30000 });
-
-//         // Extract details
-//         const nameSelector = '.DUwDvf.fontHeadlineLarge';
-//         const ratingSelector = '.F7nice.mmu3tf span[aria-hidden="true"]';
-//         const addressSelector = '.rogA2c .Io6YTe.fontBodyMedium.kR99db.fdkmkc';
-
-//         await detailPage.waitForSelector(nameSelector, { timeout: 15000 });
-
-//         const data = await detailPage.evaluate((nameSel, ratingSel, addrSel) => {
-//           const name = document.querySelector(nameSel)?.innerText || '';
-//           const rating = document.querySelector(ratingSel)?.innerText || '';
-//           const address = document.querySelector(addrSel)?.innerText || '';
-//           return { name, rating, address };
-//         }, nameSelector, ratingSelector, addressSelector);
-
-//         results.push({
-//           name: data.name || biz.name,
-//           rating: data.rating,
-//           address: data.address,
-//           url: biz.url,
-//         });
-
-//         console.log(`✅ Extracted: ${data.name} | ${data.rating} | ${data.address}`);
-//         await detailPage.waitForTimeout(1000 + Math.random() * 1500);
-
-//       } catch (err) {
-//         console.log(`❌ Failed to scrape ${biz.name}: ${err.message}`);
-//       }
-//     }
-
-//     await detailPage.close();
-//     console.log("✅ Finished scraping all business pages.");
-
-//     res.json({ leads: results });
-
-//   } catch (error) {
-//     console.error("🔴 SCRAPER ERROR:", error);
-//     res.status(500).json({ error: error.toString() });
-
-//   } finally {
-//     if (browser) {
-//       console.log("🟧 Closing browser...");
-//       await browser.close();
-//     }
-//   }
-// });
-
-
-
 app.post("/scrape", async (req, res) => {
   const { query } = req.body;
   console.log(`🟦 Incoming scrape request for query: "${query}"`);
@@ -287,126 +179,222 @@ app.post("/scrape", async (req, res) => {
     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
     console.log(`🟨 Navigating to Google Maps: ${searchUrl}`);
 
-    await page.goto(searchUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: 60000,
-    });
+    await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
 
-    await page.waitForSelector('div[role="feed"], a.hfpxzc', { timeout: 30000 });
+    console.log("🟦 Waiting for sidebar results panel...");
+    const scrollableSelector = 'div[role="feed"][aria-label^="Results for"]';
+    await page.waitForSelector(scrollableSelector, { timeout: 20000 });
     console.log("✅ Sidebar loaded!");
 
-    // Scroll to load more results
-    console.log("🟨 Scrolling to load all results...");
-    await page.evaluate(async () => {
-      const scrollable = document.querySelector('div[role="feed"]');
-      if (!scrollable) return;
-      for (let i = 0; i < 10; i++) {
-        scrollable.scrollBy(0, 1000);
-        await new Promise((r) => setTimeout(r, 800));
-      }
-    });
-    await page.waitForTimeout(2000);
+    // 🌍 Scroll to load all results
+    console.log("🟨 Scrolling until all results are loaded...");
+    await page.evaluate(async (selector) => {
+      const scrollable = document.querySelector(selector);
+      if (!scrollable) return false;
 
+      let previousHeight = 0;
+      let sameCount = 0;
+
+      for (let i = 0; i < 50; i++) {
+        scrollable.scrollBy(0, 1000);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const currentHeight = scrollable.scrollHeight;
+        if (currentHeight === previousHeight) {
+          sameCount++;
+          if (sameCount >= 3) break;
+        } else {
+          sameCount = 0;
+          previousHeight = currentHeight;
+        }
+      }
+
+      return true;
+    }, scrollableSelector);
+    console.log("✅ Finished scrolling — all results loaded!");
+
+    // 🟦 Extract business URLs from sidebar
     console.log("🟦 Extracting business URLs...");
-    const businessLinks = await page.$$eval('a.hfpxzc', (links) =>
-      links.map((el) => ({
-        name: el.getAttribute("aria-label") || "",
-        url: el.href || "",
+    const businessLinks = await page.$$eval("a.hfpxzc", (links) =>
+      links.map(link => ({
+        name: link.getAttribute("aria-label") || "",
+        url: link.href
       }))
     );
-
     console.log(`✅ Found ${businessLinks.length} business URLs.`);
+
     const results = [];
 
-    for (const biz of businessLinks) {
-      console.log(`🟨 Visiting ${biz.name} → ${biz.url}`);
-      const detailPage = await browser.newPage();
+    // 🟦 Visit each business URL individually
+    for (const { name, url } of businessLinks) {
+      console.log(`🟨 Visiting ${name || "(unknown)"} → ${url}`);
+      const bizPage = await browser.newPage();
 
       try {
-        await detailPage.goto(biz.url, { waitUntil: "domcontentloaded", timeout: 60000 });
-        await detailPage.waitForTimeout(4000); // let Maps render everything
+        await bizPage.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
 
-        const selectors = {
-          nameMain: ".DUwDvf.fontHeadlineLarge",
-          nameAlt: ".x3AX1-LfntMc-header-title-title",
-          rating: ".F7nice > span:first-child > span[aria-hidden='true']",
-          address: ".rogA2c .Io6YTe.fontBodyMedium.kR99db.fdkmkc",
-          websiteBlock: 'a[aria-label^="Website:"] .Io6YTe.fontBodyMedium.kR99db.fdkmkc',
-          phoneBlock: 'button[aria-label^="Phone:"] .Io6YTe.fontBodyMedium.kR99db.fdkmkc',
-        };
-
-        // Wait for any meaningful element to appear
-        try {
-          await detailPage.waitForSelector(
-            `${selectors.nameMain}, ${selectors.nameAlt}, ${selectors.address}, ${selectors.rating}`,
-            { timeout: 20000 }
-          );
-        } catch {
-          console.log(`⚠️ ${biz.name}: selector not found, retrying...`);
-          await detailPage.reload({ waitUntil: "domcontentloaded" });
-          await detailPage.waitForTimeout(5000);
-        }
-
-        const data = await detailPage.evaluate((s) => {
-          const clean = (t) => (t ? t.toString().trim() : "");
-
-          const nameEl = document.querySelector(s.nameMain) || document.querySelector(s.nameAlt);
-          const name = clean(nameEl?.innerText);
-
-          const ratingEl = document.querySelector(s.rating);
-          const rating = clean(ratingEl?.textContent);
-
-          const addressEl = document.querySelector(s.address);
-          const address = clean(addressEl?.textContent);
-
-          const websiteEl = document.querySelector(s.websiteBlock);
-          const website = clean(websiteEl?.innerText);
-
-          const phoneEl = document.querySelector(s.phoneBlock);
-          const phone = clean(phoneEl?.innerText);
-
-          return { name, rating, address, website, phone };
-        }, selectors);
-
-        results.push({
-          name: data.name || biz.name,
-          rating: data.rating || "",
-          address: data.address || "",
-          website: data.website || "",
-          phone: data.phone || "",
-          url: biz.url,
-        });
-
-        console.log(
-          `✅ ${data.name || biz.name} | ⭐ ${data.rating} | 📍 ${data.address} | ☎️ ${data.phone} | 🌐 ${data.website}`
+        // Wait until title (name) appears or timeout
+        await bizPage.waitForSelector(
+          '.DUwDvf, .x3AX1-LfntMc-header-title-title, h1.section-hero-header-title-title',
+          { timeout: 20000 }
         );
-      } catch (err) {
-        console.log(`❌ Failed to scrape ${biz.name}: ${err.message}`);
-        results.push({
-          name: biz.name,
-          rating: "",
-          address: "",
-          website: "",
-          phone: "",
-          url: biz.url,
+
+        // Wait an extra 2.5 seconds for slow rendering
+        await bizPage.waitForTimeout(2500);
+
+        // inside your per-business loop, after navigation and waits
+        const data = await bizPage.evaluate(() => {
+          const clean = (v) => (v ? v.toString().trim() : "");
+
+          // helper: find phone-like string by regex in a text blob
+          const findPhoneInText = (text) => {
+            if (!text) return "";
+            // common international-ish phone regex (US-friendly)
+            const phoneRegex = /(\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{2,4}[-.\s]?\d{2,4}(?:[-.\s]?\d{1,4})?/g;
+            const matches = text.match(phoneRegex);
+            if (!matches) return "";
+            // pick the longest match that contains at least 7 digits
+            const sane = matches
+              .map(m => m.replace(/[^\d+]/g, ""))
+              .filter(m => (m.replace(/\D/g, "").length >= 7));
+            if (!sane.length) return "";
+            // return the original longest match (not the digits-only)
+            let best = matches.reduce((a, b) => (a.length > b.length ? a : b));
+            return best.trim();
+          };
+           const text = (sel) => document.querySelector(sel)?.textContent?.trim() || "";
+
+          const name =
+            text(".DUwDvf.fontHeadlineLarge") ||
+            text(".x3AX1-LfntMc-header-title-title") ||
+            text("h1.section-hero-header-title-title") ||
+            text('h1.DUwDvf') ||
+            "";
+
+          // --- ADDRESS (fallbacks) ---
+          const address =
+            document.querySelector(".rogA2c .Io6YTe.fontBodyMedium.kR99db.fdkmkc")?.textContent?.trim() ||
+            document.querySelector("[data-item-id='address'] .Io6YTe")?.textContent?.trim() ||
+            "";
+
+          // --- RATING ---
+          const rating =
+            document.querySelector(".F7nice > span:first-child > span[aria-hidden='true']")?.textContent?.trim() ||
+            document.querySelector(".F7nice span[aria-hidden='true']")?.textContent?.trim() ||
+            "";
+
+          // --- WEBSITE ---
+          let website = "";
+          const websiteBlock = Array.from(document.querySelectorAll(".RcCsl"))
+            .find(el => el.innerText && /website/i.test(el.innerText));
+          if (websiteBlock) {
+            website = websiteBlock.querySelector(".Io6YTe")?.textContent?.trim() || "";
+            // sometimes the website is an <a> link instead of text
+            if (!website) {
+              const a = websiteBlock.querySelector("a[href^='http']");
+              website = a?.href || "";
+            }
+          }
+          if (!website) {
+            // fallback: try to find any top-level external link
+            const anySite = Array.from(document.querySelectorAll("a[href^='http']"))
+              .map(a => a.href)
+              .find(h => !/google\.(com|usercontent)/i.test(h));
+            website = anySite || website;
+          }
+
+          // --- PHONE: robust multi-step detection ---
+
+          // 1) button with aria-label "Phone: +1 ..." (best)
+          let phone = "";
+          const phoneBtn = document.querySelector("button[aria-label^='Phone:'], a[aria-label^='Phone:']");
+          if (phoneBtn) {
+            // aria-label often contains "Phone: +1 123-456-7890 "
+            phone = phoneBtn.getAttribute("aria-label") || phoneBtn.textContent || "";
+            phone = phone.replace(/^Phone:\s*/i, "").trim();
+          }
+
+          // 2) tel: links
+          if (!phone) {
+            const tel = document.querySelector("a[href^='tel:']");
+            if (tel) phone = (tel.getAttribute("href") || "").replace(/^tel:/i, "").trim();
+          }
+
+          // 3) .RcCsl blocks that mention "Phone"
+          if (!phone) {
+            const phoneBlock = Array.from(document.querySelectorAll(".RcCsl"))
+              .find(el => el.innerText && /phone/i.test(el.innerText));
+            if (phoneBlock) {
+              phone = phoneBlock.querySelector(".Io6YTe")?.textContent?.trim() || "";
+            }
+          }
+
+          // 4) fallback: search entire page text for phone-like pattern
+          if (!phone) {
+            const pageText = document.body.innerText || "";
+            phone = findPhoneInText(pageText);
+          }
+
+          // Normalize: remove extraneous words like "Call" or "Phone:"
+          if (phone) {
+            phone = phone.replace(/^(phone|call)[:\s-]*/i, "").trim();
+          }
+
+          // Final trim & return
+          return {
+            name: clean(name),
+            address: clean(address),
+            rating: clean(rating),
+            phone: clean(phone),
+            website: clean(website),
+          };
         });
-      } finally {
-        await detailPage.close();
+
+
+        data.url = url;
+        results.push(data);
+
+        console.log(`✅ Scraped: ${data.name || "Unnamed"} (${data.address || "No address"})`);
+
+      } catch (err) {
+        console.log(`❌ Failed to scrape ${name || "unknown"}: ${err.message}`);
       }
+
+      await bizPage.close();
     }
 
-    console.log(`✅ Scraping completed. Extracted ${results.length} total leads.`);
-    res.json({ leads: results });
+
+    await browser.close();
+    console.log("🟩 Scraping complete!");
+    res.json({ total: results.length, results });
+
   } catch (error) {
     console.error("🔴 SCRAPER ERROR:", error);
+    if (browser) await browser.close();
     res.status(500).json({ error: error.toString() });
-  } finally {
-    if (browser) {
-      console.log("🟧 Closing browser...");
-      await browser.close();
-    }
   }
 });
+
+app.post("/logout", (req, res) => {
+  try {
+    // Destroy the session (if using express-session)
+    req.session?.destroy(() => {});
+
+    // Clear the JWT cookie
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+    });
+
+    return res.status(200).json({ success: true, message: "Logged out successfully" });
+  } catch (err) {
+    console.error("Logout error:", err);
+    return res.status(500).json({ error: "Logout failed" });
+  }
+});
+
+
 
 
 

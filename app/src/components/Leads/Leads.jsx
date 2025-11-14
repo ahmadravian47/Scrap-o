@@ -49,7 +49,7 @@ export default function Leads() {
       });
       const data = await res.json();
       console.log('Data', data);
-      setLeads(data.leads || []);
+      setLeads(data.results || []);
     } catch (err) {
       console.error("Error fetching leads:", err);
     } finally {
