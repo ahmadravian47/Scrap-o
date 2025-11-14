@@ -2,13 +2,11 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Dashboard.css";
 import Leads from "../Leads/Leads";
-import Teams from "../Teams/Teams";
 import Email from "../Email/Email";
 import Settings from "../Settings/Settings";
 import logo from './logo.png';
 
 import leadsIcon from "../Dashboard/leads.png";
-import teamsIcon from "../Dashboard/teams.png";
 import emailIcon from "../Dashboard/email.png";
 import settingsIcon from "../Dashboard/settings.png";
 import logoutIcon from "../Dashboard/power-off.png";
@@ -58,7 +56,6 @@ export default function Dashboard() {
   const renderComponent = () => {
     switch (activeComponent) {
       case "Leads": return <Leads />;
-      case "Teams": return <Teams />;
       case "Email": return <Email />;
       case "Settings": return <Settings />;
       default: return null;
@@ -86,13 +83,6 @@ export default function Dashboard() {
         >
           <img src={leadsIcon} alt="Leads" className="icon" />
           Leads
-        </button>
-
-        <button className={`sidebar-btn ${activeComponent === "Teams" ? "active" : ""}`}
-          onClick={() => setActiveComponent("Teams")}
-        >
-          <img src={teamsIcon} alt="Teams" className="icon" />
-          Teams
         </button>
 
         <button className={`sidebar-btn ${activeComponent === "Email" ? "active" : ""}`}

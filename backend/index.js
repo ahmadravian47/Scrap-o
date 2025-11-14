@@ -7,12 +7,16 @@ const cors = require("cors");
 const session = require("express-session");
 const passport = require("passport");
 const User = require("./models/User");
+const Pending = require("./models/Pending");
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const helmet = require("helmet");
+const helmet = require("helmet")
 const rateLimit = require("express-rate-limit");
 const MongoStore = require('connect-mongo');
 const { chromium } = require("playwright");
+const { body, param, validationResult } = require('express-validator');
 
 require("./passport");
 
@@ -128,37 +132,110 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// SIGNUP (email + password)
-app.post("/signup", async (req, res) => {
-  const { name, emailOrPhone, password } = req.body;
-  try {
-    const userExists = await User.findOne({ email: emailOrPhone });
-    if (userExists) {
-      return res.status(400).json({ error: "User already exists" });
+app.post(
+  '/signup',
+  body('email').isEmail(),
+  body('password').isLength({ min: 8 }),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ message: 'Invalid input' });
+
+    let { name, email, password } = req.body;
+    email = email.trim().toLowerCase();
+
+    try {
+      // check if already registered
+      const existingUser = await User.findOne({ email });
+      if (existingUser)
+        return res.status(400).json({ message: 'Signup failed. If an account exists, check your email.' });
+
+      // check if already pending
+      const existingPending = await Pending.findOne({ email });
+      if (existingPending)
+        return res.status(400).json({ message: 'A verification email was already sent. Please check your inbox.' });
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+
+      await Pending.create({
+        name,
+        email,
+        hashedPassword,
+        verificationToken
+      });
+
+      const verificationLink = `${process.env.SERVER_URL}/verify?token=${verificationToken}`;
+
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS }
+      });
+
+      const mailOptions = {
+        from: process.env.MAIL_USER,
+        to: email,
+        subject: 'Verify your Scrap-o account',
+        html: `
+          <p>Please verify your email address by clicking the button below:</p>
+          <a href="${verificationLink}" 
+             style="display: inline-block; padding: 10px 20px; font-size: 16px; color: white; background-color: black; text-align: center; text-decoration: none; border-radius: 5px;">
+             Verify Email
+          </a>`
+      };
+
+      await transporter.sendMail(mailOptions);
+
+      res.status(200).json({ message: 'Verification email sent' });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: 'Internal server error' });
     }
-    const hashedPassword = await bcrypt.hash(password, 10);
+  }
+);
+app.get('/verify', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).send('Invalid token');
+
+  try {
+    const pending = await Pending.findOne({ verificationToken: token });
+    if (!pending) return res.status(400).send('Invalid or expired token');
+
+    const { name, email, hashedPassword } = pending;
+
+    // double-check user doesn’t already exist
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      await Pending.deleteOne({ _id: pending._id });
+      return res.status(400).send('User already exists');
+    }
+
+    // assign organizationNumber
     const lastUser = await User.findOne().sort({ organizationNumber: -1 });
     const newOrganizationNumber = lastUser ? lastUser.organizationNumber + 1 : 1;
 
-    const newUser = new User({
+    const newUser = await User.create({
       name,
-      email: emailOrPhone,
+      email,
       password: hashedPassword,
-      organizationNumber: newOrganizationNumber,
+      organizationNumber: newOrganizationNumber
     });
-    await newUser.save();
-    const token = jwt.sign({ email: newUser.email }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
+    // cleanup
+    await Pending.deleteOne({ _id: pending._id });
 
-    res.cookie("token", token, {
+    // create auth cookie
+    const authToken = jwt.sign({ email: newUser.email }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    res.cookie('token', authToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
-    res.status(200).json({ success: true, message: "Signup successful" });
-  } catch (error) {
-    res.status(500).json({ error: "Server error" });
+    res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Internal server error');
   }
 });
 
@@ -262,7 +339,7 @@ app.post("/scrape", async (req, res) => {
             let best = matches.reduce((a, b) => (a.length > b.length ? a : b));
             return best.trim();
           };
-           const text = (sel) => document.querySelector(sel)?.textContent?.trim() || "";
+          const text = (sel) => document.querySelector(sel)?.textContent?.trim() || "";
 
           const name =
             text(".DUwDvf.fontHeadlineLarge") ||
@@ -378,7 +455,7 @@ app.post("/scrape", async (req, res) => {
 app.post("/logout", (req, res) => {
   try {
     // Destroy the session (if using express-session)
-    req.session?.destroy(() => {});
+    req.session?.destroy(() => { });
 
     // Clear the JWT cookie
     res.clearCookie("token", {
@@ -393,6 +470,8 @@ app.post("/logout", (req, res) => {
     return res.status(500).json({ error: "Logout failed" });
   }
 });
+
+
 
 
 

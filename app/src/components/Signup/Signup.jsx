@@ -19,16 +19,19 @@ const Signup = () => {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name, emailOrPhone, password }),
+            body: JSON.stringify({ name, email: emailOrPhone, password })
         });
 
         const data = await res.json();
-        if (res.ok && data.success) {
+        if (res.ok) {
+            alert(data.message); // Show "Verification email sent"
+            // Optionally navigate somewhere, e.g., login page
             navigate("/dashboard");
         } else {
-            alert(data.error || "Signup failed");
+            alert(data.message || "Signup failed"); // Show any error message from backend
         }
-       
+
+
     };
 
 
