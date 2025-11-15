@@ -443,7 +443,54 @@ app.post("/scrape", async (req, res) => {
 
     await browser.close();
     console.log("🟩 Scraping complete!");
-    res.json({ total: results.length, results });
+
+    // --- extract filters from request ---
+    // --- extract filters from request ---
+    const { mustHave = [], ratings = [] } = req.body;
+
+    // Map UI names → lead object keys
+    const fieldMap = {
+      "Phone": "phone",
+      "Address": "address",
+      "Website": "website"
+    };
+
+    // Must-have filter
+    const passesMustHave = (lead) => {
+      if (mustHave.length === 0) return true;
+
+      return mustHave.every(field => {
+        const key = fieldMap[field];
+        if (!key) return true; // ignore unknown fields
+        const val = lead[key];
+        return val && val.toString().trim().length > 0;
+      });
+    };
+
+    // Rating filter
+    const passesRating = (lead) => {
+      if (ratings.length === 0) return true;
+      if (!lead.rating) return false;
+
+      const rounded = Math.floor(Number(lead.rating)); // "4.3" → 4
+
+      return ratings.some(r => {
+        const num = Number(r.split(" ")[0]); // "4 stars" → 4
+        return num === rounded;
+      });
+    };
+
+    // Apply filters
+    const filteredResults = results.filter(
+      lead => passesMustHave(lead) && passesRating(lead)
+    );
+
+    res.json({
+      total: filteredResults.length,
+      results: filteredResults
+    });
+
+
 
   } catch (error) {
     console.error("🔴 SCRAPER ERROR:", error);

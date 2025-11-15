@@ -25,8 +25,7 @@ export default function Leads() {
   const [leads, setLeads] = useState([]); // <-- Store scraped leads
   const [loading, setLoading] = useState(false);
 
-  const locations = ['United States', 'Canada'];
-  const industries = ['Window replacement companies', 'Roofing companies', 'HVAC'];
+  const locations = ['Address', 'Phone','Website'];
   const ratings = ['1 star', '2 stars', '3 stars', '4 stars', '5 stars'];
 
   const toggleSelection = (list, setList, item) => {
@@ -37,25 +36,31 @@ export default function Leads() {
     );
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery) return;
-    setLoading(true);
+const handleSearch = async () => {
+  if (!searchQuery) return;
+  setLoading(true);
 
-    try {
-      const res = await fetch(`${import.meta.env.VITE_SERVER_URL}/scrape`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: searchQuery }),
-      });
-      const data = await res.json();
-      console.log('Data', data);
-      setLeads(data.results || []);
-    } catch (err) {
-      console.error("Error fetching leads:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    const res = await fetch(`${import.meta.env.VITE_SERVER_URL}/scrape`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: searchQuery,
+        mustHave: selectedLocations,   // e.g. ["Phone", "Website"]
+        ratings: selectedRatings       // e.g. ["3 stars", "4 stars"]
+      }),
+    });
+
+    const data = await res.json();
+    console.log('Data', data);
+    setLeads(data.results || []);
+  } catch (err) {
+    console.error("Error fetching leads:", err);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen flex flex-col items-center p-4 sm:p-8">
@@ -91,7 +96,7 @@ export default function Leads() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 sm:gap-y-0 sm:gap-x-12">
             <div className="space-y-6">
               <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Locations</h3>
+                <h3 className="text-sm font-medium text-gray-500 mb-2">Must Have</h3>
                 <div className="flex flex-wrap gap-2">
                   {locations.map(loc => (
                     <FilterPill
@@ -103,19 +108,7 @@ export default function Leads() {
                   ))}
                 </div>
               </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Industry</h3>
-                <div className="flex flex-wrap gap-2">
-                  {industries.map(ind => (
-                    <FilterPill
-                      key={ind}
-                      label={ind}
-                      isSelected={selectedIndustries.includes(ind)}
-                      onClick={() => toggleSelection(selectedIndustries, setSelectedIndustries, ind)}
-                    />
-                  ))}
-                </div>
-              </div>
+           
             </div>
             <div>
               <div>
