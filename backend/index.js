@@ -19,6 +19,8 @@ const MongoStore = require('connect-mongo');
 const { chromium } = require("playwright");
 const { body, param, validationResult } = require('express-validator');
 const { ImapFlow } = require("imapflow");
+const Imap = require("imap");
+const { simpleParser } = require("mailparser");
 
 
 require("./passport");
@@ -671,6 +673,157 @@ app.post("/settings/test-imap", auth, async (req, res) => {
     });
   }
 });
+
+
+
+
+
+
+async function fetchInboxMessages(orgNumber, limit = 10) {
+  // Get settings for the organization
+  const settings = await Settings.findOne({ organizationNumber: orgNumber });
+  if (!settings) throw new Error("Settings not found for this organization");
+
+  const imapConfig = {
+    user: settings.imapUser,
+    password: settings.imapPass,
+    host: settings.imapHost,
+    port: settings.imapPort,
+    tls: settings.imapSecure,
+    tlsOptions: { rejectUnauthorized: false },
+  };
+
+  return new Promise((resolve, reject) => {
+    const imap = new Imap(imapConfig);
+
+    function openInbox() {
+      return new Promise((res, rej) => {
+        imap.openBox("INBOX", true, (err, box) => {
+          if (err) return rej(err);
+          res(box);
+        });
+      });
+    }
+
+    imap.once("ready", async () => {
+      try {
+        await openInbox();
+
+        // Search for all messages
+        imap.search(["ALL"], (err, results) => {
+          if (err) throw err;
+
+          if (!results || results.length === 0) {
+            imap.end();
+            return resolve([]);
+          }
+
+          // Get last N UIDs
+          const uidsToFetch = results.slice(-limit);
+
+          const fetcher = imap.fetch(uidsToFetch, { bodies: "", struct: true });
+          const messagePromises = [];
+
+          fetcher.on("message", (msg) => {
+            let emailBuffer = "";
+            const messagePromise = new Promise((res) => {
+              msg.on("body", (stream) => {
+                stream.on("data", (chunk) => (emailBuffer += chunk.toString("utf8")));
+              });
+
+              msg.once("end", async () => {
+                try {
+                  const parsed = await simpleParser(emailBuffer);
+                  res({
+                    subject: parsed.subject,
+                    from: parsed.from?.text,
+                    to: parsed.to?.text,
+                    date: parsed.date,
+                    text: parsed.text,
+                    html: parsed.html,
+                  });
+                } catch (parseErr) {
+                  res(null); // skip parsing errors
+                }
+              });
+            });
+
+            messagePromises.push(messagePromise);
+          });
+
+          fetcher.once("end", async () => {
+            const messages = (await Promise.all(messagePromises)).filter(Boolean);
+            imap.end();
+            resolve(messages.reverse()); // newest first
+          });
+
+          fetcher.once("error", (err) => reject(err));
+        });
+      } catch (error) {
+        imap.end();
+        reject(error);
+      }
+    });
+
+    imap.once("error", (err) => reject(err));
+    imap.connect();
+  });
+}
+
+async function sendEmail(orgNumber, to, subject, body) {
+  // Get settings for the organization
+  const settings = await Settings.findOne({ organizationNumber: orgNumber });
+  if (!settings) throw new Error("Settings not found for this organization");
+
+  if (!settings.smtpUser || !settings.smtpPass) {
+    throw new Error("SMTP credentials not set for this organization");
+  }
+
+  // Configure transporter
+  const transporter = nodemailer.createTransport({
+    host: settings.smtpHost,
+    port: settings.smtpPort,
+    secure: settings.smtpSecure,
+    auth: {
+      user: settings.smtpUser,
+      pass: settings.smtpPass,
+    },
+  });
+
+  // Send email
+  const info = await transporter.sendMail({
+    from: `"Lead Scraper" <${settings.smtpUser}>`,
+    to,
+    subject,
+    text: body,
+    html: body, // if you want HTML support
+  });
+
+  return info;
+}
+app.get("/get-user-inbox", auth, async (req, res) => {
+  try {
+    const userEmail = req.user.email;
+
+    if (!userEmail) return res.status(400).json({ message: "User email not found" });
+
+    const user = await User.findOne({ email: userEmail });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const orgNumber = user.organizationNumber;
+
+    // Fetch inbox messages using your previously defined function
+    const messages = await fetchInboxMessages(orgNumber);
+
+    res.json(messages);
+  } catch (err) {
+    console.error("Error fetching inbox:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+
 
 
 
