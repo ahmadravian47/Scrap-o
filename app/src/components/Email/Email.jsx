@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Mail, Pencil, Upload, Search, RotateCw, Square, ChevronLeft, ChevronRight, Settings, LayoutGrid } from "lucide-react";
+import { Mail, Pencil, Upload, Search, RotateCw, Square, ChevronLeft, ChevronRight, Settings, LayoutGrid, X } from "lucide-react";
 
+// Skeleton for loading
 const TicketSkeleton = () => (
   <div className="flex items-start py-3 px-4 border-b animate-pulse">
     <div className="flex items-center pt-1 pr-4">
@@ -14,7 +15,6 @@ const TicketSkeleton = () => (
     </div>
   </div>
 );
-
 
 const TicketRow = ({ ticket }) => (
   <div className="flex items-start py-3 px-4 border-b hover:bg-gray-50 transition duration-150 cursor-pointer">
@@ -41,6 +41,15 @@ const TicketRow = ({ ticket }) => (
 const Email = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Compose modal state
+  const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [receiver, setReceiver] = useState("");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
   const REACT_APP_SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
   useEffect(() => {
@@ -60,6 +69,30 @@ const Email = () => {
   const totalCount = tickets.length;
   const isSelected = false;
 
+  // Send email
+  const handleSendEmail = async () => {
+    if (!receiver || !subject || !body) {
+      setError("All fields are required");
+      return;
+    }
+    setSending(true);
+    setError("");
+    try {
+      await axios.post(`${REACT_APP_SERVER_URL}/send-email`, { to: receiver, subject, body }, { withCredentials: true });
+      setIsComposeOpen(false);
+      setReceiver("");
+      setSubject("");
+      setBody("");
+      alert("Email sent successfully!");
+    } catch (err) {
+      console.error("Error sending email:", err);
+      setError(err?.response?.data?.message || "Failed to send email");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Header with Compose button and all your existing buttons preserved
   const Header = () => (
     <header className="flex items-center justify-between p-4 border-b border-gray-300">
       <h1 className="text-xl font-medium text-gray-800">Waiting for help</h1>
@@ -73,7 +106,7 @@ const Email = () => {
           />
         </div>
 
-        <button className="flex items-center border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 transition bg-[#fafafa]">
+        <button className="flex items-center border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-100 transition bg-[#fafafa]" onClick={() => setIsComposeOpen(true)}>
           <Pencil className="w-4 h-4 mr-2" />
           Compose
         </button>
@@ -91,6 +124,7 @@ const Email = () => {
     </header>
   );
 
+  // SubToolbar same as before
   const SubToolbar = () => (
     <div className="flex items-center justify-between p-4 border-b border-gray-300">
       <div className="flex items-center space-x-4">
@@ -130,14 +164,48 @@ const Email = () => {
             ? Array.from({ length: 5 }).map((_, idx) => <TicketSkeleton key={idx} />)
             : tickets.map((ticket, idx) => <TicketRow key={idx} ticket={ticket} />)}
         </div>
-
-        <div className="divide-y divide-gray-200">
-          {tickets.map((ticket, idx) => (
-            <TicketRow key={idx} ticket={ticket} />
-          ))}
-        </div>
-        <div className="h-10 bg-gray-50"></div>
       </div>
+
+      {/* Compose Modal */}
+      {isComposeOpen && (
+        <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
+          <div className="bg-white rounded-xl w-96 p-6 relative">
+            <button className="absolute top-3 right-3" onClick={() => setIsComposeOpen(false)}>
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-lg font-semibold mb-4">Compose Email</h2>
+            <input
+              type="email"
+              placeholder="Recipient"
+              value={receiver}
+              onChange={(e) => setReceiver(e.target.value)}
+              className="w-full mb-3 px-3 py-2 border rounded"
+            />
+            <input
+              type="text"
+              placeholder="Subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              className="w-full mb-3 px-3 py-2 border rounded"
+            />
+            <textarea
+              placeholder="Message"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              className="w-full mb-3 px-3 py-2 border rounded"
+              rows={5}
+            />
+            {error && <p className="text-red-600 mb-2">{error}</p>}
+            <button
+              onClick={handleSendEmail}
+              disabled={sending}
+              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition disabled:opacity-60"
+            >
+              {sending ? "Sending..." : "Send"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

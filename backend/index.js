@@ -822,6 +822,31 @@ app.get("/get-user-inbox", auth, async (req, res) => {
   }
 });
 
+app.post("/send-email", auth, async (req, res) => {
+  try {
+    const { to, subject, body } = req.body;
+
+    if (!to || !subject || !body) {
+      return res.status(400).json({ message: "Recipient, subject, and body are required" });
+    }
+
+    // Find logged-in user
+    const userEmail = req.user.email;
+    const user = await User.findOne({ email: userEmail });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const orgNumber = user.organizationNumber;
+    if (!orgNumber) return res.status(400).json({ message: "Organization number not set for user" });
+
+    // Send the email
+    const info = await sendEmail(orgNumber, to, subject, body);
+
+    res.json({ message: "Email sent successfully", info });
+  } catch (err) {
+    console.error("Error sending email:", err);
+    res.status(500).json({ message: err.message || "Server error" });
+  }
+});
 
 
 
