@@ -7,6 +7,7 @@ const cors = require("cors");
 const session = require("express-session");
 const passport = require("passport");
 const User = require("./models/User");
+ const Settings = require("./models/Settings");
 const Pending = require("./models/Pending");
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
@@ -520,7 +521,85 @@ app.post("/logout", (req, res) => {
 
 
 
+app.get("/settings",auth, async (req, res) => {
+  try {
+    const userEmail = req.query.email;
 
+    if (!userEmail)
+      return res.status(400).json({ message: "Email is required" });
+
+    const user = await User.findOne({ email: userEmail });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const orgNumber = user.organizationNumber;
+
+    const settings = await Settings.findOne({ organizationNumber: orgNumber });
+
+    if (!settings) {
+      return res.status(404).json({ message: "Settings not found" });
+    }
+
+    res.json(settings);
+  } catch (err) {
+    console.error("Error fetching settings:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.post("/settings",auth, async (req, res) => {
+  try {
+    const userEmail = req.user.email;
+
+    // Get logged-in user
+    const user = await User.findOne({ email: userEmail });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const orgNumber = user.organizationNumber;
+
+    // Extract fields
+    const {
+      smtpHost,
+      smtpPort,
+      smtpSecure,
+      smtpUser,
+      smtpPass,
+
+      imapHost,
+      imapPort,
+      imapSecure,
+      imapUser,
+      imapPass,
+    } = req.body;
+
+    // Build update object
+    const updateData = {
+      organizationNumber: orgNumber,
+      smtpHost,
+      smtpPort,
+      smtpSecure,
+      smtpUser,
+      imapHost,
+      imapPort,
+      imapSecure,
+      imapUser,
+    };
+
+    if (smtpPass) updateData.smtpPass = smtpPass;
+    if (imapPass) updateData.imapPass = imapPass;
+
+    // Update OR create
+    const settings = await Settings.findOneAndUpdate(
+      { organizationNumber: orgNumber },
+      { $set: updateData },
+      { upsert: true, new: true }
+    );
+
+    res.json({ message: "Settings saved", settings });
+  } catch (err) {
+    console.error("Error saving settings:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 
 

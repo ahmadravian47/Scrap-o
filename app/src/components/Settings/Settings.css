@@ -1,0 +1,308 @@
+/* ✅ Compact Mobile Layout for TechnicianSettings */
+@media (max-width: 768px) {
+
+    /* Reduce outer padding and spacing */
+    .sett {
+        padding: 10px !important;
+    }
+
+    /* Adjust container spacing */
+    .sett .max-w-6xl {
+        padding: 0 12px !important;
+    }
+
+    /* Headings smaller & closer */
+    .sett h1.text-4xl {
+        font-size: 1.5rem !important;
+    }
+
+    .sett section {
+        padding: 1rem !important;
+        border-radius: 10px;
+        box-shadow: none;
+    }
+
+    /* Inputs smaller, tighter */
+    .sett input,
+    .sett select {
+        font-size: 13px !important;
+        padding: 8px 10px !important;
+    }
+
+    /* Two-column grids → single column */
+    .sett .grid-cols-2,
+    .sett .md\:grid-cols-2 {
+        grid-template-columns: 1fr !important;
+    }
+
+    /* Buttons compact & full width when stacked */
+    .sett button {
+        font-size: 14px !important;
+        padding: 10px 12px !important;
+        border-radius: 6px;
+    }
+
+    .sett .flex.items-center.justify-between {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    /* Technician input cards smaller */
+    .sett .p-8 {
+        padding: 1rem !important;
+    }
+
+    .sett .p-4 {
+        padding: 0.75rem !important;
+    }
+
+    .sett .text-sm {
+        font-size: 13px !important;
+    }
+
+    /* Technician cards look cleaner */
+    .sett .bg-gray-50.rounded-lg.border {
+        padding: 10px !important;
+    }
+
+    .sett .w-24 {
+        width: 70px !important;
+    }
+
+    /* Compact toggles section */
+    .sett .flex.items-center.gap-2 {
+        gap: 6px !important;
+    }
+
+    /* Avoid text wrapping issues */
+    .sett .truncate {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Footer buttons stacked */
+    .sett .mt-10.flex.items-center.justify-end {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+
+    /* Minor readability improvements */
+    .sett p.text-xs,
+    .sett .mt-1.text-xs {
+        font-size: 12px !important;
+    }
+
+    /* Remove excessive shadow/padding */
+    .sett .shadow-sm {
+        box-shadow: none !important;
+    }
+}
+
+
+
+@media (max-width: 768px) {
+
+    /* Compact toggle button */
+    .sett button[aria-pressed] {
+        width: 38px !important;
+        height: 20px !important;
+        border: none !important;
+        padding: 0 !important;
+        transition: background-color 0.25s ease-in-out;
+        flex-shrink: 0;
+        border-radius: 100px;
+    }
+
+    /* Toggle knob */
+    .sett button[aria-pressed] span[aria-hidden="true"] {
+        width: 16px !important;
+        height: 16px !important;
+        transition: transform 0.25s ease-in-out;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Compact alignment for text + toggle */
+    .sett .flex.items-center.gap-2 {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 6px !important;
+        width: auto !important;
+        /* 🚫 Prevent full width */
+    }
+
+    /* Text size adjustment */
+    .sett .flex.items-center.gap-2 span.text-sm {
+        font-size: 13px !important;
+        line-height: 1;
+    }
+
+    /* Active state (green) */
+    .sett button[aria-pressed="true"] {
+        background-color: #047857 !important;
+    }
+
+    /* Inactive state (gray) */
+    .sett button[aria-pressed="false"] {
+        background-color: #d1d5db !important;
+    }
+
+    /* Style the white circle (knob) */
+    .sett button[aria-pressed] span[aria-hidden="true"] {
+        margin-top: 1.5px;
+    }
+
+}
+
+
+
+@media (max-width: 768px) {
+
+  /* Target only text/number inputs (not toggles) */
+  .sett label.block:has(input[type="text"]),
+  .sett label.block:has(input[type="number"]) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 6px;
+    text-align: left !important;
+  }
+
+  /* Label */
+  .sett label.block:has(input) .text-sm.font-medium {
+    order: 0;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #1f2937 !important; /* gray-800 */
+  }
+
+  /* Description — immediately below label */
+  .sett label.block:has(input) p.text-xs.text-gray-500 {
+    order: 1;
+    font-size: 12px !important;
+    color: #6b7280 !important;
+    line-height: 1.5 !important;
+    margin-top: -10px !important;
+  }
+
+  /* Input container */
+  .sett label.block:has(input) .relative {
+    order: 2;
+  }
+
+  /* Input field */
+  .sett label.block:has(input) input {
+    width: 100% !important;
+    font-size: 14px !important;
+    padding: 8px 10px !important;
+    text-align: left !important;
+  }
+
+  /* Suffix inside input */
+  .sett label.block:has(input) span.absolute {
+    font-size: 12px !important;
+    color: #6b7280 !important;
+    right: 8px !important;
+    left: auto !important;
+  }
+
+  /* Green helper note — below input */
+  .sett label.block:has(input) p.text-xs.text-emerald-600 {
+    order: 3;
+    font-size: 12px !important;
+    margin-top: 2px !important;
+  }
+
+  /* Spacing between sections */
+  .sett .grid.gap-8 {
+    gap: 18px !important;
+  }
+}
+
+
+
+
+
+
+
+
+/* ✅ Swap order: Input first, Toggle second (only for TimeInputWithToggle on mobile) */
+@media (max-width: 768px) {
+  .sett label.block:has(.flex-col.sm\:flex-row) .flex-col {
+    flex-direction: row-reverse !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+  }
+
+  /* Keep the input wide and toggle compact */
+  .sett label.block:has(.flex-col.sm\:flex-row) .relative.flex-1 {
+    order: 1 !important;
+    flex: 1 !important;
+  }
+
+  .sett label.block:has(.flex-col.sm\:flex-row) .flex.items-center.justify-between {
+    order: -2 !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+
+/* ✅ Fix: Keep "Hours" and "Minutes" horizontally aligned beside the toggle */
+@media (max-width: 768px) {
+  .sett label.block:has(.flex-col.sm\:flex-row)
+    .flex.items-center.justify-between.sm\:justify-start {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+  }
+
+  /* Make sure Hours and Minutes sit properly around toggle */
+  .sett label.block:has(.flex-col.sm\:flex-row)
+    .flex.items-center.justify-between.sm\:justify-start span.text-sm {
+    font-size: 13px !important;
+    white-space: nowrap;
+  }
+}
+
+
+
+
+
+
+/* ✅ Fix: Toggle stays between "Hours" (left) and "Minutes" (right) */
+@media (max-width: 768px) {
+  .sett label.block:has(.flex-col.sm\:flex-row)
+    .flex.items-center.justify-between.sm\:justify-start {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+  }
+
+  /* Ensure correct order: Hours → Toggle → Minutes */
+  .sett label.block:has(.flex-col.sm\:flex-row)
+    .flex.items-center.justify-between.sm\:justify-start span.text-sm:first-child {
+    order: 0 !important;
+  }
+
+  .sett label.block:has(.flex-col.sm\:flex-row)
+    .flex.items-center.justify-between.sm\:justify-start button[aria-pressed] {
+    order: 1 !important;
+  }
+
+  .sett label.block:has(.flex-col.sm\:flex-row)
+    .flex.items-center.justify-between.sm\:justify-start span.text-sm:last-child {
+    order: 2 !important;
+  }
+
+  /* Optional: make toggle + labels perfectly centered with input */
+  .sett label.block:has(.flex-col.sm\:flex-row)
+    .flex.items-center.justify-between.sm\:justify-start {
+    margin-top: 2px !important;
+  }
+}
