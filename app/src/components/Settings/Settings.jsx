@@ -57,6 +57,12 @@ export default function EmailSettings() {
   const [imapUser, setImapUser] = useState("");
   const [imapPass, setImapPass] = useState("");
 
+  // Test results & warnings
+  const [smtpTestResult, setSmtpTestResult] = useState("");
+  const [imapTestResult, setImapTestResult] = useState("");
+  const [smtpPasswordWarning, setSmtpPasswordWarning] = useState("");
+  const [imapPasswordWarning, setImapPasswordWarning] = useState("");
+
   const REACT_APP_SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
   const fetchUserEmail = async () => {
@@ -88,7 +94,7 @@ export default function EmailSettings() {
       setSmtpPort(s.smtpPort || 587);
       setSmtpSecure(Boolean(s.smtpSecure));
       setSmtpUser(s.smtpUser || "");
-      setSmtpPass("");
+      setSmtpPass(""); // do not autofill passwords
 
       setImapHost(s.imapHost || "");
       setImapPort(s.imapPort || 993);
@@ -116,16 +122,16 @@ export default function EmailSettings() {
     setError("");
 
     const payload = {
-      smtpHost,
+      smtpHost: smtpHost.trim(),
       smtpPort: Number(smtpPort),
       smtpSecure,
-      smtpUser,
+      smtpUser: smtpUser.trim(),
       ...(smtpPass ? { smtpPass } : {}),
 
-      imapHost,
+      imapHost: imapHost.trim(),
       imapPort: Number(imapPort),
       imapSecure,
-      imapUser,
+      imapUser: imapUser.trim(),
       ...(imapPass ? { imapPass } : {}),
     };
 
@@ -136,17 +142,71 @@ export default function EmailSettings() {
       alert("Settings saved!");
       await fetchSettings(userEmail);
     } catch (err) {
-      setError(
-        err?.response?.data?.message || "Failed to save settings."
-      );
+      setError(err?.response?.data?.message || "Failed to save settings.");
       alert("Failed to save settings.");
     } finally {
       setSaving(false);
     }
   };
 
+  const testSmtp = async () => {
+    if (!smtpPass) {
+      setSmtpPasswordWarning("Please enter your SMTP password to test.");
+      return;
+    }
+    setSmtpPasswordWarning(""); // clear warning
+    setSmtpTestResult("Testing...");
+    try {
+      const payload = {
+        smtpHost: smtpHost.trim(),
+        smtpPort: Number(smtpPort),
+        smtpSecure,
+        smtpUser: smtpUser.trim(),
+        smtpPass,
+      };
+      const res = await axios.post(
+        `${REACT_APP_SERVER_URL}/settings/test-smtp`,
+        payload,
+        { withCredentials: true }
+      );
+      setSmtpTestResult(res.data?.message || "SMTP test succeeded");
+    } catch (err) {
+      setSmtpTestResult(
+        err?.response?.data?.message || String(err.message || "SMTP test failed")
+      );
+    }
+  };
+
+  const testImap = async () => {
+    if (!imapPass) {
+      setImapPasswordWarning("Please enter your IMAP password to test.");
+      return;
+    }
+    setImapPasswordWarning(""); // clear warning
+    setImapTestResult("Testing...");
+    try {
+      const payload = {
+        imapHost: imapHost.trim(),
+        imapPort: Number(imapPort),
+        imapSecure,
+        imapUser: imapUser.trim(),
+        imapPass,
+      };
+      const res = await axios.post(
+        `${REACT_APP_SERVER_URL}/settings/test-imap`,
+        payload,
+        { withCredentials: true }
+      );
+      setImapTestResult(res.data?.message || "IMAP test succeeded");
+    } catch (err) {
+      setImapTestResult(
+        err?.response?.data?.message || String(err.message || "IMAP test failed")
+      );
+    }
+  };
+
   return (
-    <div className="min-h-screen w-full bg-gray-100 pb-16">
+    <div className="min-h-screen w-full bg-[#fafafa] pb-16">
       <div className="px-6 py-12 max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-10">
           <h1 className="text-3xl font-extrabold text-gray-900">
@@ -211,6 +271,21 @@ export default function EmailSettings() {
             placeholder="••••••"
             type="password"
           />
+
+          <div className="flex items-center gap-3 mt-4">
+            <button
+              onClick={testSmtp}
+              className="rounded-sm bg-white text-gray-700 px-4 py-2 border border-gray-300 hover:bg-gray-50"
+            >
+              Test SMTP
+            </button>
+            {smtpTestResult && (
+              <span className="text-sm text-gray-700">{smtpTestResult}</span>
+            )}
+            {smtpPasswordWarning && (
+              <span className="text-sm text-red-600">{smtpPasswordWarning}</span>
+            )}
+          </div>
         </section>
 
         {/* IMAP */}
@@ -256,6 +331,21 @@ export default function EmailSettings() {
             placeholder="••••••"
             type="password"
           />
+
+          <div className="flex items-center gap-3 mt-4">
+            <button
+              onClick={testImap}
+              className="rounded-sm bg-white text-gray-700 px-4 py-2 border border-gray-300 hover:bg-gray-50"
+            >
+              Test IMAP
+            </button>
+            {imapTestResult && (
+              <span className="text-sm text-gray-700">{imapTestResult}</span>
+            )}
+            {imapPasswordWarning && (
+              <span className="text-sm text-red-600">{imapPasswordWarning}</span>
+            )}
+          </div>
         </section>
 
         <div className="flex justify-end gap-4">

@@ -18,6 +18,8 @@ const rateLimit = require("express-rate-limit");
 const MongoStore = require('connect-mongo');
 const { chromium } = require("playwright");
 const { body, param, validationResult } = require('express-validator');
+const { ImapFlow } = require("imapflow");
+
 
 require("./passport");
 
@@ -109,7 +111,6 @@ app.get('/userprofile', auth, (req, res) => {
   });
 });
 
-// LOGIN (email + password)
 app.post("/login", async (req, res) => {
   const { emailOrPhone, password } = req.body;
   try {
@@ -601,6 +602,75 @@ app.post("/settings",auth, async (req, res) => {
   }
 });
 
+
+app.post("/settings/test-smtp", auth, async (req, res) => {
+  const { smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass } = req.body;
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+
+    // Verify connection (NO email sent yet)
+    await transporter.verify();
+
+    // Optional: send a test email
+    await transporter.sendMail({
+      from: smtpUser,
+      to: smtpUser,
+      subject: "SMTP Test Successful",
+      text: "If you received this, SMTP is working!",
+    });
+
+    return res.json({ success: true, message: "SMTP connection successful" });
+  } catch (err) {
+    console.log("SMTP Test Error:", err);
+    return res.status(400).json({
+      success: false,
+      message: err.message || "SMTP Test Failed",
+    });
+  }
+});
+
+app.post("/settings/test-imap", auth, async (req, res) => {
+  const { imapHost, imapPort, imapSecure, imapUser, imapPass } = req.body;
+
+  const client = new ImapFlow({
+    host: imapHost,
+    port: imapPort,
+    secure: imapSecure,
+    auth: {
+      user: imapUser,
+      pass: imapPass,
+    },
+  });
+
+  try {
+    await client.connect();
+
+    // Try to open inbox
+    await client.mailboxOpen("INBOX");
+
+    await client.logout();
+
+    return res.json({
+      success: true,
+      message: "IMAP connection successful",
+    });
+  } catch (err) {
+    console.log("IMAP Test Error:", err);
+    return res.status(400).json({
+      success: false,
+      message: err.message || "IMAP Test Failed",
+    });
+  }
+});
 
 
 
