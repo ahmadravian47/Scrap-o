@@ -7,7 +7,8 @@ const cors = require("cors");
 const session = require("express-session");
 const passport = require("passport");
 const User = require("./models/User");
- const Settings = require("./models/Settings");
+const SentEmail = require("./models/SentEmail");
+const Settings = require("./models/Settings");
 const Pending = require("./models/Pending");
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
@@ -92,15 +93,17 @@ app.use("/auth/google/callback", oauthLimiter);
 
 // Routes
 app.use("/auth", authRoutes);
+const port = process.env.PORT || 5000;
 
 // Start DB + server
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
-    app.listen(process.env.PORT, () => {
-      console.log(`🚀 Server running on port ${process.env.PORT}`);
+    app.listen(port, () => {
+      console.log('Server running');
     });
+
   })
   .catch((err) => console.log(err));
 
@@ -524,7 +527,7 @@ app.post("/logout", (req, res) => {
 
 
 
-app.get("/settings",auth, async (req, res) => {
+app.get("/settings", auth, async (req, res) => {
   try {
     const userEmail = req.query.email;
 
@@ -549,7 +552,7 @@ app.get("/settings",auth, async (req, res) => {
   }
 });
 
-app.post("/settings",auth, async (req, res) => {
+app.post("/settings", auth, async (req, res) => {
   try {
     const userEmail = req.user.email;
 
@@ -771,53 +774,118 @@ async function fetchInboxMessages(orgNumber, limit = 10) {
 }
 
 async function sendEmail(orgNumber, to, subject, body) {
-  // Get settings for the organization
   const settings = await Settings.findOne({ organizationNumber: orgNumber });
-  if (!settings) throw new Error("Settings not found for this organization");
+  if (!settings) throw new Error("Settings not found");
 
-  if (!settings.smtpUser || !settings.smtpPass) {
-    throw new Error("SMTP credentials not set for this organization");
-  }
+  const trackingId = new mongoose.Types.ObjectId();
+  const pixelURL = `${process.env.SERVER_URL}/email-open/${trackingId}`;
 
-  // Configure transporter
+  // Save email before sending
+  await SentEmail.create({
+    _id: trackingId,
+    organizationNumber: orgNumber,
+    to,
+    subject,
+    body,
+    openCount: 0,
+    openedAt: null,
+    sentAt: new Date()
+  });
+
+  // SAFE tracking (pixel only — no CID, no font-face, no background hack)
+  const trackingHTML = `<img src="${pixelURL}" width="1" height="1" style="visibility:hidden;display:block;" />`;
+
+
+  const htmlContent = `
+    <div>
+      ${body}
+      <br><br>
+      ${trackingHTML}
+    </div>
+  `;
+
   const transporter = nodemailer.createTransport({
     host: settings.smtpHost,
     port: settings.smtpPort,
     secure: settings.smtpSecure,
     auth: {
       user: settings.smtpUser,
-      pass: settings.smtpPass,
+      pass: settings.smtpPass
     },
   });
 
-  // Send email
   const info = await transporter.sendMail({
-    from: `"Lead Scraper" <${settings.smtpUser}>`,
+    from: settings.smtpUser,
     to,
     subject,
-    text: body,
-    html: body, // if you want HTML support
+    html: htmlContent
   });
 
   return info;
 }
-app.get("/get-user-inbox", auth, async (req, res) => {
+
+app.get("/email-open/:id", async (req, res) => {
   try {
-    const userEmail = req.user.email;
+    const id = req.params.id;
+    const email = await SentEmail.findById(id);
+    if (!email) return res.status(404).send("Not found");
 
-    if (!userEmail) return res.status(400).json({ message: "User email not found" });
+    const ua = (req.headers["user-agent"] || "").toLowerCase();
 
-    const user = await User.findOne({ email: userEmail });
+    // BOT FILTER LIST
+    const botUA = ["curl", "python", "java"]; // only filter real bots
+
+    const isBotUA = botUA.some(token => ua.includes(token));
+
+    if (isBotUA) {
+      console.log("BOT FILTERED UA:", ua);
+      return res.end(); // do not track
+    }
+
+    // PREMATURE REQUEST FILTER (antivirus/spam filters)
+    const sentTime = email.sentAt.getTime();
+    const now = Date.now();
+
+    if (now - sentTime < 4500) {
+      console.log("IGNORED FAST REQUEST:", ua);
+      return res.end();
+    }
+
+    // UPDATE REAL HUMAN OPEN
+    email.openCount += 1;
+    if (!email.openedAt) email.openedAt = new Date();
+    await email.save();
+
+    console.log(`REAL OPEN DETECTED for ${id}`);
+
+    // 1x1 GIF pixel
+    const pixel = Buffer.from(
+      "R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==",
+      "base64"
+    );
+
+    res.set("Content-Type", "image/gif");
+    res.send(pixel);
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).send("Error");
+  }
+});
+
+app.get("/get-sent-emails", auth, async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.user.email });
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const orgNumber = user.organizationNumber;
 
-    // Fetch inbox messages using your previously defined function
-    const messages = await fetchInboxMessages(orgNumber);
+    const emails = await SentEmail.find({ organizationNumber: orgNumber })
+      .sort({ sentAt: -1 });
 
-    res.json(messages);
+    res.json(emails);
+
   } catch (err) {
-    console.error("Error fetching inbox:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -830,23 +898,22 @@ app.post("/send-email", auth, async (req, res) => {
       return res.status(400).json({ message: "Recipient, subject, and body are required" });
     }
 
-    // Find logged-in user
-    const userEmail = req.user.email;
-    const user = await User.findOne({ email: userEmail });
+    const user = await User.findOne({ email: req.user.email });
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const orgNumber = user.organizationNumber;
     if (!orgNumber) return res.status(400).json({ message: "Organization number not set for user" });
 
-    // Send the email
     const info = await sendEmail(orgNumber, to, subject, body);
 
     res.json({ message: "Email sent successfully", info });
+
   } catch (err) {
     console.error("Error sending email:", err);
     res.status(500).json({ message: err.message || "Server error" });
   }
 });
+
 
 
 
