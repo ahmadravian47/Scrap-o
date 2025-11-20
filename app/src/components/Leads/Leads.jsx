@@ -55,6 +55,8 @@ export default function Leads() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [progress, setProgress] = useState(0);
+const [status, setStatus] = useState('');
 
   const locations = ['Address', 'Phone', 'Website'];
   const ratings = ['1 star', '2 stars', '3 stars', '4 stars', '5 stars'];
@@ -65,31 +67,49 @@ export default function Leads() {
     );
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery) return;
+const handleSearch = async () => {
+  if (!searchQuery) return;
 
-    setLoading(true);
-    setHasSearched(true);
+  setLoading(true);
+  setHasSearched(true);
+  setProgress(0);
+  setStatus('Starting search...');
 
-    try {
-      const res = await fetch(`${import.meta.env.VITE_SERVER_URL}/scrape`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: searchQuery,
-          mustHave: selectedLocations,
-          ratings: selectedRatings
-        })
-      });
+  try {
+    // Use fetch with AbortController for better timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 360000); // 6 minute timeout
 
-      const data = await res.json();
-      setLeads(data.results || []);
-    } catch (err) {
-      console.error('Error fetching leads:', err);
-    } finally {
-      setLoading(false);
+    const res = await fetch(`${import.meta.env.VITE_SERVER_URL}/scrape`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: searchQuery,
+        mustHave: selectedLocations,
+        ratings: selectedRatings
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    
+    const data = await res.json();
+    setLeads(data.results || []);
+    
+  } catch (err) {
+    console.error('Error fetching leads:', err);
+    if (err.name === 'AbortError') {
+      alert('Request timed out. Please try a more specific search or fewer filters.');
     }
-  };
+  } finally {
+    setLoading(false);
+    setProgress(0);
+    setStatus('');
+  }
+};
+
 
   // ---------------------------
   // Download functions

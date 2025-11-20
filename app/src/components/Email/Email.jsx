@@ -61,11 +61,7 @@ const TicketRow = ({ ticket }) => {
 
         <p className="text-sm text-gray-600 mt-1 truncate">{ticket.body}</p>
 
-        {opened && (
-          <p className="text-xs text-green-600 mt-1">
-            Opened {ticket.openCount} time(s)
-          </p>
-        )}
+       
       </div>
     </div>
   );

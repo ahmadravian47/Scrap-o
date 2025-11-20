@@ -32,12 +32,13 @@ const app = express();
 app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL,
-    credentials: true,
-  })
-);
+app.use(cors({
+  origin: process.env.CLIENT_URL,
+  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+  exposedHeaders: ['set-cookie']
+}));
+
 
 
 
@@ -100,9 +101,6 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
-    app.listen(port, () => {
-      console.log('Server running');
-    });
 
   })
   .catch((err) => console.log(err));
@@ -115,7 +113,6 @@ app.get('/userprofile', auth, (req, res) => {
     email: req.user.email,
   });
 });
-
 app.post("/login", async (req, res) => {
   const { emailOrPhone, password } = req.body;
   try {
@@ -246,265 +243,328 @@ app.get('/verify', async (req, res) => {
   }
 });
 
-
 app.post("/scrape", async (req, res) => {
-  const { query } = req.body;
+  const { query, mustHave = [], ratings = [] } = req.body;
+
+  if (!query) return res.status(400).json({ error: "Query is required" });
+
   console.log(`🟦 Incoming scrape request for query: "${query}"`);
 
   let browser;
   try {
     console.log("🟨 Launching Chromium...");
-    browser = await chromium.launch({
-      headless: true,
-      executablePath: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    browser = await chromium.launch({ 
+      headless: true, 
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu'
+      ] 
     });
 
-    const page = await browser.newPage();
+    console.log("🟦 Creating browser context...");
+    const context = await browser.newContext();
+    context.setDefaultTimeout(30000);
+    context.setDefaultNavigationTimeout(30000);
+
+    await context.setExtraHTTPHeaders({
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9',
+    });
+
+    const page = await context.newPage();
     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
-    console.log(`🟨 Navigating to Google Maps: ${searchUrl}`);
+    console.log(`🟨 Navigating to: ${searchUrl}`);
+    
+    try {
+      await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+      console.log("✅ Page loaded");
+    } catch {
+      console.log("⚠️ Navigation timeout, continuing anyway...");
+    }
 
-    await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+    console.log("🟦 Waiting for results...");
+    try {
+      await page.waitForFunction(() => {
+        return document.querySelector('a[href*="/place/"]') || 
+               document.querySelector('[role="feed"]') ||
+               document.querySelector('.hfpxzc') ||
+               document.querySelector('.Nv2PK');
+      }, { timeout: 15000 });
+      console.log("✅ Results found");
+    } catch {
+      const hasContent = await page.evaluate(() => document.body.textContent.length > 100);
+      if (!hasContent) throw new Error('Page failed to load content');
+    }
 
-    console.log("🟦 Waiting for sidebar results panel...");
-    const scrollableSelector = 'div[role="feed"][aria-label^="Results for"]';
-    await page.waitForSelector(scrollableSelector, { timeout: 20000 });
-    console.log("✅ Sidebar loaded!");
+    console.log("🟨 Scrolling for more results...");
+    try {
+      await page.evaluate(async () => {
+        const findScrollable = () => {
+          const selectors = ['div[role="feed"]', '.m6QErb', 'div[style*="overflow"]'];
+          for (const selector of selectors) {
+            const element = document.querySelector(selector);
+            if (element && element.scrollHeight > element.clientHeight) return element;
+          }
+          return document.body;
+        };
+        const scrollable = findScrollable();
+        let lastHeight = scrollable.scrollHeight, noChangeCount = 0;
+        while (noChangeCount < 3) {
+          scrollable.scrollTop = scrollable.scrollHeight;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          const newHeight = scrollable.scrollHeight;
+          if (newHeight === lastHeight) noChangeCount++;
+          else { noChangeCount = 0; lastHeight = newHeight; }
+        }
+      });
+      console.log("✅ Scrolling completed");
+    } catch (scrollError) {
+      console.log("⚠️ Scrolling issue:", scrollError.message);
+    }
 
-    // 🌍 Scroll to load all results
-    console.log("🟨 Scrolling until all results are loaded...");
-    await page.evaluate(async (selector) => {
-      const scrollable = document.querySelector(selector);
-      if (!scrollable) return false;
+    console.log("🟦 Extracting ALL business URLs...");
+    let businessLinks = [];
+    try {
+      businessLinks = await page.$$eval('a[href*="/place/"]', (elements) => {
+        return elements.map(element => {
+          try {
+            const href = element.getAttribute('href');
+            if (!href) return null;
+            const fullUrl = href.startsWith('http') ? href : `https://www.google.com${href}`;
+            const name = element.getAttribute('aria-label') || 
+                        element.querySelector('.qBF1Pd')?.textContent?.trim() ||
+                        element.closest('.Nv2PK')?.querySelector('.qBF1Pd')?.textContent?.trim() ||
+                        'Business';
+            if (fullUrl.includes('/place/') && fullUrl.includes('google.com/maps')) return { name, url: fullUrl };
+            return null;
+          } catch { return null; }
+        }).filter(link => link !== null);
+      });
+    } catch (error) {
+      console.log("❌ URL extraction failed:", error.message);
+    }
 
-      let previousHeight = 0;
-      let sameCount = 0;
+    console.log(`✅ Found ${businessLinks.length} business URLs`);
+    await page.close();
 
-      for (let i = 0; i < 50; i++) {
-        scrollable.scrollBy(0, 1000);
-        await new Promise(resolve => setTimeout(resolve, 1500));
+    if (!businessLinks.length) {
+      await context.close();
+      await browser.close();
+      return res.json({ total: 0, results: [], message: "No business listings found" });
+    }
 
-        const currentHeight = scrollable.scrollHeight;
-        if (currentHeight === previousHeight) {
-          sameCount++;
-          if (sameCount >= 3) break;
-        } else {
-          sameCount = 0;
-          previousHeight = currentHeight;
+    // --- CONCURRENT SCRAPING WITHOUT p-limit ---
+    console.log("🟦 Scraping business details concurrently...");
+
+    async function scrapeWithConcurrency(businessLinks, context, concurrency = 5) {
+      const results = [];
+      let index = 0;
+
+      async function worker() {
+        while (index < businessLinks.length) {
+          const currentIndex = index++;
+          const business = businessLinks[currentIndex];
+          try {
+            const data = await scrapeBusinessPage(context, business.name, business.url);
+            if (data) results.push(data);
+          } catch (err) {
+            console.log(`❌ ${business.name} failed: ${err.message}`);
+          }
         }
       }
 
-      return true;
-    }, scrollableSelector);
-    console.log("✅ Finished scrolling — all results loaded!");
-
-    // 🟦 Extract business URLs from sidebar
-    console.log("🟦 Extracting business URLs...");
-    const businessLinks = await page.$$eval("a.hfpxzc", (links) =>
-      links.map(link => ({
-        name: link.getAttribute("aria-label") || "",
-        url: link.href
-      }))
-    );
-    console.log(`✅ Found ${businessLinks.length} business URLs.`);
-
-    const results = [];
-
-    // 🟦 Visit each business URL individually
-    for (const { name, url } of businessLinks) {
-      console.log(`🟨 Visiting ${name || "(unknown)"} → ${url}`);
-      const bizPage = await browser.newPage();
-
-      try {
-        await bizPage.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
-
-        // Wait until title (name) appears or timeout
-        await bizPage.waitForSelector(
-          '.DUwDvf, .x3AX1-LfntMc-header-title-title, h1.section-hero-header-title-title',
-          { timeout: 20000 }
-        );
-
-        // Wait an extra 2.5 seconds for slow rendering
-        await bizPage.waitForTimeout(2500);
-
-        // inside your per-business loop, after navigation and waits
-        const data = await bizPage.evaluate(() => {
-          const clean = (v) => (v ? v.toString().trim() : "");
-
-          // helper: find phone-like string by regex in a text blob
-          const findPhoneInText = (text) => {
-            if (!text) return "";
-            // common international-ish phone regex (US-friendly)
-            const phoneRegex = /(\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{2,4}[-.\s]?\d{2,4}(?:[-.\s]?\d{1,4})?/g;
-            const matches = text.match(phoneRegex);
-            if (!matches) return "";
-            // pick the longest match that contains at least 7 digits
-            const sane = matches
-              .map(m => m.replace(/[^\d+]/g, ""))
-              .filter(m => (m.replace(/\D/g, "").length >= 7));
-            if (!sane.length) return "";
-            // return the original longest match (not the digits-only)
-            let best = matches.reduce((a, b) => (a.length > b.length ? a : b));
-            return best.trim();
-          };
-          const text = (sel) => document.querySelector(sel)?.textContent?.trim() || "";
-
-          const name =
-            text(".DUwDvf.fontHeadlineLarge") ||
-            text(".x3AX1-LfntMc-header-title-title") ||
-            text("h1.section-hero-header-title-title") ||
-            text('h1.DUwDvf') ||
-            "";
-
-          // --- ADDRESS (fallbacks) ---
-          const address =
-            document.querySelector(".rogA2c .Io6YTe.fontBodyMedium.kR99db.fdkmkc")?.textContent?.trim() ||
-            document.querySelector("[data-item-id='address'] .Io6YTe")?.textContent?.trim() ||
-            "";
-
-          // --- RATING ---
-          const rating =
-            document.querySelector(".F7nice > span:first-child > span[aria-hidden='true']")?.textContent?.trim() ||
-            document.querySelector(".F7nice span[aria-hidden='true']")?.textContent?.trim() ||
-            "";
-
-          // --- WEBSITE ---
-          let website = "";
-          const websiteBlock = Array.from(document.querySelectorAll(".RcCsl"))
-            .find(el => el.innerText && /website/i.test(el.innerText));
-          if (websiteBlock) {
-            website = websiteBlock.querySelector(".Io6YTe")?.textContent?.trim() || "";
-            // sometimes the website is an <a> link instead of text
-            if (!website) {
-              const a = websiteBlock.querySelector("a[href^='http']");
-              website = a?.href || "";
-            }
-          }
-          if (!website) {
-            // fallback: try to find any top-level external link
-            const anySite = Array.from(document.querySelectorAll("a[href^='http']"))
-              .map(a => a.href)
-              .find(h => !/google\.(com|usercontent)/i.test(h));
-            website = anySite || website;
-          }
-
-          // --- PHONE: robust multi-step detection ---
-
-          // 1) button with aria-label "Phone: +1 ..." (best)
-          let phone = "";
-          const phoneBtn = document.querySelector("button[aria-label^='Phone:'], a[aria-label^='Phone:']");
-          if (phoneBtn) {
-            // aria-label often contains "Phone: +1 123-456-7890 "
-            phone = phoneBtn.getAttribute("aria-label") || phoneBtn.textContent || "";
-            phone = phone.replace(/^Phone:\s*/i, "").trim();
-          }
-
-          // 2) tel: links
-          if (!phone) {
-            const tel = document.querySelector("a[href^='tel:']");
-            if (tel) phone = (tel.getAttribute("href") || "").replace(/^tel:/i, "").trim();
-          }
-
-          // 3) .RcCsl blocks that mention "Phone"
-          if (!phone) {
-            const phoneBlock = Array.from(document.querySelectorAll(".RcCsl"))
-              .find(el => el.innerText && /phone/i.test(el.innerText));
-            if (phoneBlock) {
-              phone = phoneBlock.querySelector(".Io6YTe")?.textContent?.trim() || "";
-            }
-          }
-
-          // 4) fallback: search entire page text for phone-like pattern
-          if (!phone) {
-            const pageText = document.body.innerText || "";
-            phone = findPhoneInText(pageText);
-          }
-
-          // Normalize: remove extraneous words like "Call" or "Phone:"
-          if (phone) {
-            phone = phone.replace(/^(phone|call)[:\s-]*/i, "").trim();
-          }
-
-          // Final trim & return
-          return {
-            name: clean(name),
-            address: clean(address),
-            rating: clean(rating),
-            phone: clean(phone),
-            website: clean(website),
-          };
-        });
-
-
-        data.url = url;
-        results.push(data);
-
-        console.log(`✅ Scraped: ${data.name || "Unnamed"} (${data.address || "No address"})`);
-
-      } catch (err) {
-        console.log(`❌ Failed to scrape ${name || "unknown"}: ${err.message}`);
+      const workers = [];
+      for (let i = 0; i < concurrency; i++) {
+        workers.push(worker());
       }
 
-      await bizPage.close();
+      await Promise.all(workers);
+      return results;
     }
 
+    const scrapedResults = await scrapeWithConcurrency(businessLinks, context, 5);
 
+    console.log(`🟩 Scraping complete! Got ${scrapedResults.length} valid results out of ${businessLinks.length} businesses`);
+
+    await context.close();
     await browser.close();
-    console.log("🟩 Scraping complete!");
 
-    // --- extract filters from request ---
-    // --- extract filters from request ---
-    const { mustHave = [], ratings = [] } = req.body;
-
-    // Map UI names → lead object keys
-    const fieldMap = {
-      "Phone": "phone",
-      "Address": "address",
-      "Website": "website"
-    };
-
-    // Must-have filter
-    const passesMustHave = (lead) => {
-      if (mustHave.length === 0) return true;
-
-      return mustHave.every(field => {
-        const key = fieldMap[field];
-        if (!key) return true; // ignore unknown fields
-        const val = lead[key];
-        return val && val.toString().trim().length > 0;
-      });
-    };
-
-    // Rating filter
-    const passesRating = (lead) => {
-      if (ratings.length === 0) return true;
-      if (!lead.rating) return false;
-
-      const rounded = Math.floor(Number(lead.rating)); // "4.3" → 4
-
-      return ratings.some(r => {
-        const num = Number(r.split(" ")[0]); // "4 stars" → 4
-        return num === rounded;
-      });
-    };
-
-    // Apply filters
-    const filteredResults = results.filter(
-      lead => passesMustHave(lead) && passesRating(lead)
-    );
-
+    const filteredResults = applyFilters(scrapedResults, mustHave, ratings);
     res.json({
       total: filteredResults.length,
-      results: filteredResults
+      results: filteredResults,
+      message: `Found ${filteredResults.length} leads matching your criteria from ${businessLinks.length} total businesses`
     });
 
-
-
   } catch (error) {
-    console.error("🔴 SCRAPER ERROR:", error);
+    console.error("🔴 SCRAPER ERROR:", error.message);
     if (browser) await browser.close();
-    res.status(500).json({ error: error.toString() });
+    res.status(500).json({ error: "Scraping failed", details: error.message });
   }
 });
+
+// Updatedd function to use existing context instead of creating new browser
+async function scrapeBusinessPage(context, name, url) {
+  if (!url || !url.includes('/place/')) {
+    throw new Error('Invalid business URL');
+  }
+
+  const page = await context.newPage();
+  
+  try {
+    const cleanUrl = url.split('&')[0] + '?hl=en';
+    
+    console.log(`   ↪ Loading business page...`);
+    await page.goto(cleanUrl, { 
+      waitUntil: "domcontentloaded", 
+      timeout: 15000 
+    });
+
+    // Wait for content
+    await Promise.race([
+      page.waitForSelector('.DUwDvf, h1, [aria-labelledby], .section-hero-header-title, [data-item-id]', { timeout: 5000 }),
+      page.waitForTimeout(2000)
+    ]);
+
+    const data = await page.evaluate(() => {
+      const getText = (selector) => {
+        const element = document.querySelector(selector);
+        return element?.textContent?.trim() || '';
+      };
+
+      // Name
+      const name = 
+        getText('.DUwDvf.fontHeadlineLarge') ||
+        getText('h1') ||
+        getText('[aria-labelledby]') ||
+        getText('.section-hero-header-title') ||
+        document.title.replace(' - Google Maps', '');
+
+      // Address
+      const address = 
+        getText('[data-item-id="address"] .Io6YTe') ||
+        getText('.rogA2c .Io6YTe') ||
+        getText('[aria-label*="Address"]') ||
+        getText('.AG25L .Io6YTe');
+
+      // Rating
+      const rating = 
+        getText('.F7nice > span > span') ||
+        getText('[aria-label*="stars"]');
+
+      // Phone - Multiple methods
+      let phone = '';
+      
+      // Method 1: Phone button
+      const phoneButton = document.querySelector('button[data-tooltip*="Phone"], button[aria-label*="Phone"]');
+      if (phoneButton) {
+        phone = phoneButton.getAttribute('data-tooltip') || 
+                phoneButton.getAttribute('aria-label');
+        phone = phone.replace(/Phone:\s*/i, '').replace(/[^\d+]/g, '');
+      }
+      
+      // Method 2: Telephone link
+      if (!phone) {
+        const phoneLink = document.querySelector('a[href^="tel:"]');
+        if (phoneLink) {
+          phone = phoneLink.getAttribute('href')?.replace('tel:', '');
+          phone = phone.replace(/[^\d+]/g, '');
+        }
+      }
+      
+      // Method 3: Phone section
+      if (!phone) {
+        const phoneSection = document.querySelector('[data-item-id="phone"]');
+        if (phoneSection) {
+          phone = phoneSection.querySelector('.Io6YTe')?.textContent?.trim();
+          phone = phone.replace(/[^\d+]/g, '');
+        }
+      }
+
+      // Method 4: Search in page content
+      if (!phone) {
+        const bodyText = document.body.textContent;
+        const phoneRegex = /(\+?[\d\s\-\(\)]{10,})/g;
+        const matches = bodyText.match(phoneRegex);
+        if (matches) {
+          const likelyPhones = matches.filter(match => {
+            const digits = match.replace(/\D/g, '');
+            return digits.length >= 10;
+          });
+          if (likelyPhones.length > 0) {
+            phone = likelyPhones[0].replace(/[^\d+]/g, '');
+          }
+        }
+      }
+
+      // Website
+      let website = '';
+      const websiteLinks = Array.from(document.querySelectorAll('a[href*="://"]'));
+      for (const link of websiteLinks) {
+        const href = link.href;
+        if (href && !href.includes('google') && 
+            !href.includes('facebook.com/places') && 
+            !href.includes('tel:') && 
+            !href.includes('mailto:')) {
+          website = href;
+          break;
+        }
+      }
+
+      return {
+        name: name || '',
+        address: address || '',
+        rating: rating || '',
+        phone: phone || '',
+        website: website || ''
+      };
+    });
+
+    // Validate data
+    if (!data.name && !data.address && !data.phone && !data.website) {
+      throw new Error('No data extracted from page');
+    }
+
+    data.url = url;
+    return data;
+
+  } catch (err) {
+    throw new Error(`Page scrape failed: ${err.message}`);
+  } finally {
+    await page.close();
+  }
+}
+
+// Filter function (same as before)
+function applyFilters(results, mustHave, ratings) {
+  const fieldMap = { "Phone": "phone", "Address": "address", "Website": "website" };
+
+  const passesMustHave = (lead) => {
+    if (!mustHave.length) return true;
+    return mustHave.every(field => {
+      const key = fieldMap[field];
+      if (!key) return true;
+      return lead[key] && lead[key].toString().trim().length > 0;
+    });
+  };
+
+  const passesRating = (lead) => {
+    if (!ratings.length) return true;
+    if (!lead.rating) return false;
+    const numRating = parseFloat(lead.rating);
+    return ratings.some(r => {
+      const targetRating = parseInt(r.split(" ")[0]);
+      return Math.floor(numRating) === targetRating;
+    });
+  };
+
+  return results.filter(lead => lead && passesMustHave(lead) && passesRating(lead));
+}
 
 app.post("/logout", (req, res) => {
   try {
@@ -886,6 +946,7 @@ app.get("/get-sent-emails", auth, async (req, res) => {
     res.json(emails);
 
   } catch (err) {
+    console.log(err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -918,6 +979,7 @@ app.post("/send-email", auth, async (req, res) => {
 
 
 
-
-
+app.listen(port, () => {
+      console.log('Server running');
+    });
 
