@@ -7,6 +7,7 @@ const cors = require("cors");
 const session = require("express-session");
 const passport = require("passport");
 const User = require("./models/User");
+const ScrapeJob = require("./models/ScrapeJob");
 const SentEmail = require("./models/SentEmail");
 const Settings = require("./models/Settings");
 const Pending = require("./models/Pending");
@@ -248,29 +249,88 @@ app.post("/scrape", async (req, res) => {
 
   if (!query) return res.status(400).json({ error: "Query is required" });
 
-  console.log(`🟦 Incoming scrape request for query: "${query}"`);
+  try {
+    console.log(`🟦 Creating scrape job for query: "${query}"`);
+    const job = await ScrapeJob.create({ query, mustHave, ratings, status: 'pending' });
+    console.log(`🟩 Job created with ID: ${job._id}`);
+    res.json({ jobId: job._id, status: 'pending' }); // immediate response
 
+    // --- Start scraping asynchronously ---
+    (async () => {
+      try {
+        console.log(`🟨 Starting scraping for job ${job._id}...`);
+        const scrapedResults = await performScraping(query);
+        console.log(`🟩 Scraping done for job ${job._id}, total results: ${scrapedResults.length}`);
+
+        const filteredResults = applyFilters(scrapedResults, mustHave, ratings);
+        console.log(`🟦 Filtered results for job ${job._id}: ${filteredResults.length}`);
+
+        await ScrapeJob.findByIdAndUpdate(job._id, {
+          status: 'done',
+          result: filteredResults,
+          updatedAt: new Date()
+        });
+        console.log(`✅ Job ${job._id} marked as done`);
+
+      } catch (err) {
+        console.error(`🔴 Job ${job._id} failed:`, err.message);
+        await ScrapeJob.findByIdAndUpdate(job._id, {
+          status: 'failed',
+          error: err.message,
+          updatedAt: new Date()
+        });
+      }
+    })();
+
+  } catch (err) {
+    console.error("Failed to create scrape job:", err.message);
+    res.status(500).json({ error: "Failed to create scrape job" });
+  }
+});
+
+// --- Check job status ---
+app.get("/scrape/status/:jobId", async (req, res) => {
+  const { jobId } = req.params;
+
+  try {
+    const job = await ScrapeJob.findById(jobId);
+    if (!job) {
+      console.warn(`⚠️ Job ${jobId} not found`);
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    console.log(`ℹ️ Job ${jobId} status check: ${job.status}`);
+    if (job.status === 'pending') return res.json({ status: 'pending' });
+    if (job.status === 'done') return res.json({ status: 'done', results: job.result });
+    if (job.status === 'failed') return res.json({ status: 'failed', error: job.error });
+
+  } catch (err) {
+    console.error("Error fetching job:", err.message);
+    res.status(500).json({ error: "Failed to fetch job status" });
+  }
+});
+
+// --- Perform scraping ---
+async function performScraping(query) {
   let browser;
   try {
-    console.log("🟨 Launching Chromium...");
-    browser = await chromium.launch({ 
-      headless: true, 
+    console.log("🟦 Launching Chromium...");
+    browser = await chromium.launch({
+      headless: true,
       args: [
-        '--no-sandbox', 
+        '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
         '--disable-gpu'
-      ] 
+      ]
     });
 
-    console.log("🟦 Creating browser context...");
     const context = await browser.newContext();
     context.setDefaultTimeout(30000);
     context.setDefaultNavigationTimeout(30000);
-
     await context.setExtraHTTPHeaders({
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept-Language': 'en-US,en;q=0.9',
@@ -278,269 +338,177 @@ app.post("/scrape", async (req, res) => {
 
     const page = await context.newPage();
     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
-    console.log(`🟨 Navigating to: ${searchUrl}`);
-    
-    try {
-      await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
-      console.log("✅ Page loaded");
-    } catch {
-      console.log("⚠️ Navigation timeout, continuing anyway...");
-    }
+    console.log(`🟨 Navigating to ${searchUrl}`);
+    await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
 
-    console.log("🟦 Waiting for results...");
+    console.log("🟦 Waiting for search results...");
     try {
       await page.waitForFunction(() => {
-        return document.querySelector('a[href*="/place/"]') || 
+        return document.querySelector('a[href*="/place/"]') ||
                document.querySelector('[role="feed"]') ||
                document.querySelector('.hfpxzc') ||
                document.querySelector('.Nv2PK');
       }, { timeout: 15000 });
-      console.log("✅ Results found");
+      console.log("✅ Results appeared on page");
     } catch {
       const hasContent = await page.evaluate(() => document.body.textContent.length > 100);
       if (!hasContent) throw new Error('Page failed to load content');
+      console.warn("⚠️ Navigation timed out, but content detected");
     }
 
-    console.log("🟨 Scrolling for more results...");
-    try {
-      await page.evaluate(async () => {
-        const findScrollable = () => {
-          const selectors = ['div[role="feed"]', '.m6QErb', 'div[style*="overflow"]'];
-          for (const selector of selectors) {
-            const element = document.querySelector(selector);
-            if (element && element.scrollHeight > element.clientHeight) return element;
-          }
-          return document.body;
-        };
-        const scrollable = findScrollable();
-        let lastHeight = scrollable.scrollHeight, noChangeCount = 0;
-        while (noChangeCount < 3) {
-          scrollable.scrollTop = scrollable.scrollHeight;
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          const newHeight = scrollable.scrollHeight;
-          if (newHeight === lastHeight) noChangeCount++;
-          else { noChangeCount = 0; lastHeight = newHeight; }
+    console.log("🟨 Starting deep scroll...");
+    await page.evaluate(async () => {
+      function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+      const findScrollable = () => {
+        const selectors = ['div[role="feed"]', '.m6QErb', 'div[style*="overflow"]'];
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el && el.scrollHeight > el.clientHeight) return el;
         }
-      });
-      console.log("✅ Scrolling completed");
-    } catch (scrollError) {
-      console.log("⚠️ Scrolling issue:", scrollError.message);
-    }
+        return document.body;
+      };
+      const scrollable = findScrollable();
+      console.log("🟦 Scrollable element found", scrollable);
+      let previousHeight = 0, stableCount = 0;
 
-    console.log("🟦 Extracting ALL business URLs...");
-    let businessLinks = [];
-    try {
-      businessLinks = await page.$$eval('a[href*="/place/"]', (elements) => {
-        return elements.map(element => {
-          try {
-            const href = element.getAttribute('href');
-            if (!href) return null;
-            const fullUrl = href.startsWith('http') ? href : `https://www.google.com${href}`;
-            const name = element.getAttribute('aria-label') || 
-                        element.querySelector('.qBF1Pd')?.textContent?.trim() ||
-                        element.closest('.Nv2PK')?.querySelector('.qBF1Pd')?.textContent?.trim() ||
-                        'Business';
-            if (fullUrl.includes('/place/') && fullUrl.includes('google.com/maps')) return { name, url: fullUrl };
-            return null;
-          } catch { return null; }
-        }).filter(link => link !== null);
-      });
-    } catch (error) {
-      console.log("❌ URL extraction failed:", error.message);
-    }
+      while (stableCount < 8) {
+        scrollable.scrollTop = scrollable.scrollHeight;
+        await wait(2500);
+        const newHeight = scrollable.scrollHeight;
+        if (newHeight === previousHeight) stableCount++;
+        else { stableCount = 0; previousHeight = newHeight; }
+        scrollable.scrollTop -= 300; await wait(1000);
+        scrollable.scrollTop = scrollable.scrollHeight; await wait(1500);
+      }
+    });
+    console.log("✅ Scrolling finished");
 
-    console.log(`✅ Found ${businessLinks.length} business URLs`);
+    console.log("🟦 Extracting business URLs...");
+    let businessLinks = await page.$$eval('a[href*="/place/"]', els =>
+      els.map(el => {
+        try {
+          const href = el.getAttribute('href');
+          if (!href) return null;
+          const fullUrl = href.startsWith('http') ? href : `https://www.google.com${href}`;
+          const name = el.getAttribute('aria-label') ||
+                       el.querySelector('.qBF1Pd')?.textContent?.trim() ||
+                       el.closest('.Nv2PK')?.querySelector('.qBF1Pd')?.textContent?.trim() ||
+                       'Business';
+          if (fullUrl.includes('/place/') && fullUrl.includes('google.com/maps')) return { name, url: fullUrl };
+          return null;
+        } catch { return null; }
+      }).filter(x => x !== null)
+    );
+    console.log(`✅ Found ${businessLinks.length} businesses`);
+
     await page.close();
 
     if (!businessLinks.length) {
       await context.close();
       await browser.close();
-      return res.json({ total: 0, results: [], message: "No business listings found" });
+      return [];
     }
 
-    // --- CONCURRENT SCRAPING WITHOUT p-limit ---
-    console.log("🟦 Scraping business details concurrently...");
-
-    async function scrapeWithConcurrency(businessLinks, context, concurrency = 5) {
+    console.log("🟨 Scraping individual business pages concurrently...");
+    async function scrapeWithConcurrency(links, context, concurrency = 5) {
       const results = [];
       let index = 0;
 
       async function worker() {
-        while (index < businessLinks.length) {
+        while (index < links.length) {
           const currentIndex = index++;
-          const business = businessLinks[currentIndex];
+          const business = links[currentIndex];
           try {
+            console.log(`   ↪ Scraping ${business.name} (${currentIndex + 1}/${links.length})`);
             const data = await scrapeBusinessPage(context, business.name, business.url);
-            if (data) results.push(data);
+            if (data) {
+              results.push(data);
+              console.log(`      ✅ Scraped ${business.name}`);
+            }
           } catch (err) {
-            console.log(`❌ ${business.name} failed: ${err.message}`);
+            console.warn(`      ⚠️ Failed to scrape ${business.name}: ${err.message}`);
           }
         }
       }
 
       const workers = [];
-      for (let i = 0; i < concurrency; i++) {
-        workers.push(worker());
-      }
-
+      for (let i = 0; i < concurrency; i++) workers.push(worker());
       await Promise.all(workers);
       return results;
     }
 
     const scrapedResults = await scrapeWithConcurrency(businessLinks, context, 5);
 
-    console.log(`🟩 Scraping complete! Got ${scrapedResults.length} valid results out of ${businessLinks.length} businesses`);
-
     await context.close();
     await browser.close();
 
-    const filteredResults = applyFilters(scrapedResults, mustHave, ratings);
-    res.json({
-      total: filteredResults.length,
-      results: filteredResults,
-      message: `Found ${filteredResults.length} leads matching your criteria from ${businessLinks.length} total businesses`
-    });
+    console.log("🟩 Scraping finished");
+    return scrapedResults;
 
-  } catch (error) {
-    console.error("🔴 SCRAPER ERROR:", error.message);
+  } catch (err) {
     if (browser) await browser.close();
-    res.status(500).json({ error: "Scraping failed", details: error.message });
+    console.error("🔴 Scraping error:", err.message);
+    throw err;
   }
-});
+}
 
-// Updatedd function to use existing context instead of creating new browser
+// --- Scrape individual business page ---
 async function scrapeBusinessPage(context, name, url) {
-  if (!url || !url.includes('/place/')) {
-    throw new Error('Invalid business URL');
-  }
-
   const page = await context.newPage();
-  
   try {
+    console.log(`      🔹 Loading business page: ${name}`);
     const cleanUrl = url.split('&')[0] + '?hl=en';
-    
-    console.log(`   ↪ Loading business page...`);
-    await page.goto(cleanUrl, { 
-      waitUntil: "domcontentloaded", 
-      timeout: 15000 
-    });
-
-    // Wait for content
+    await page.goto(cleanUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
     await Promise.race([
       page.waitForSelector('.DUwDvf, h1, [aria-labelledby], .section-hero-header-title, [data-item-id]', { timeout: 5000 }),
       page.waitForTimeout(2000)
     ]);
 
     const data = await page.evaluate(() => {
-      const getText = (selector) => {
-        const element = document.querySelector(selector);
-        return element?.textContent?.trim() || '';
-      };
-
-      // Name
-      const name = 
-        getText('.DUwDvf.fontHeadlineLarge') ||
-        getText('h1') ||
-        getText('[aria-labelledby]') ||
-        getText('.section-hero-header-title') ||
-        document.title.replace(' - Google Maps', '');
-
-      // Address
-      const address = 
-        getText('[data-item-id="address"] .Io6YTe') ||
-        getText('.rogA2c .Io6YTe') ||
-        getText('[aria-label*="Address"]') ||
-        getText('.AG25L .Io6YTe');
-
-      // Rating
-      const rating = 
-        getText('.F7nice > span > span') ||
-        getText('[aria-label*="stars"]');
-
-      // Phone - Multiple methods
+      const getText = selector => document.querySelector(selector)?.textContent?.trim() || '';
+      const name = getText('.DUwDvf.fontHeadlineLarge') || getText('h1') || getText('[aria-labelledby]') || getText('.section-hero-header-title') || document.title.replace(' - Google Maps', '');
+      const address = getText('[data-item-id="address"] .Io6YTe') || getText('.rogA2c .Io6YTe') || getText('[aria-label*="Address"]') || getText('.AG25L .Io6YTe');
+      const rating = getText('.F7nice > span > span') || getText('[aria-label*="stars"]');
       let phone = '';
-      
-      // Method 1: Phone button
       const phoneButton = document.querySelector('button[data-tooltip*="Phone"], button[aria-label*="Phone"]');
-      if (phoneButton) {
-        phone = phoneButton.getAttribute('data-tooltip') || 
-                phoneButton.getAttribute('aria-label');
-        phone = phone.replace(/Phone:\s*/i, '').replace(/[^\d+]/g, '');
-      }
-      
-      // Method 2: Telephone link
-      if (!phone) {
-        const phoneLink = document.querySelector('a[href^="tel:"]');
-        if (phoneLink) {
-          phone = phoneLink.getAttribute('href')?.replace('tel:', '');
-          phone = phone.replace(/[^\d+]/g, '');
-        }
-      }
-      
-      // Method 3: Phone section
-      if (!phone) {
-        const phoneSection = document.querySelector('[data-item-id="phone"]');
-        if (phoneSection) {
-          phone = phoneSection.querySelector('.Io6YTe')?.textContent?.trim();
-          phone = phone.replace(/[^\d+]/g, '');
-        }
-      }
-
-      // Method 4: Search in page content
-      if (!phone) {
-        const bodyText = document.body.textContent;
-        const phoneRegex = /(\+?[\d\s\-\(\)]{10,})/g;
-        const matches = bodyText.match(phoneRegex);
-        if (matches) {
-          const likelyPhones = matches.filter(match => {
-            const digits = match.replace(/\D/g, '');
-            return digits.length >= 10;
-          });
-          if (likelyPhones.length > 0) {
-            phone = likelyPhones[0].replace(/[^\d+]/g, '');
-          }
-        }
-      }
-
-      // Website
+      if (phoneButton) phone = (phoneButton.getAttribute('data-tooltip') || phoneButton.getAttribute('aria-label') || '').replace(/Phone:\s*/i,'').replace(/[^\d+]/g,'');
+      if (!phone) { const phoneLink = document.querySelector('a[href^="tel:"]'); if(phoneLink) phone = phoneLink.getAttribute('href').replace('tel:','').replace(/[^\d+]/g,''); }
+      if (!phone) { const phoneSection = document.querySelector('[data-item-id="phone"]'); if(phoneSection) phone = phoneSection.querySelector('.Io6YTe')?.textContent?.trim().replace(/[^\d+]/g,''); }
+      if (!phone) { const bodyText = document.body.textContent; const matches = bodyText.match(/(\+?[\d\s\-\(\)]{10,})/g); if(matches) { const likely = matches.filter(m=>m.replace(/\D/g,'').length>=10); if(likely.length>0) phone=likely[0].replace(/[^\d+]/g,''); } }
       let website = '';
       const websiteLinks = Array.from(document.querySelectorAll('a[href*="://"]'));
       for (const link of websiteLinks) {
         const href = link.href;
-        if (href && !href.includes('google') && 
-            !href.includes('facebook.com/places') && 
-            !href.includes('tel:') && 
-            !href.includes('mailto:')) {
-          website = href;
-          break;
+        if (href && !href.includes('google') && !href.includes('facebook.com/places') && !href.includes('tel:') && !href.includes('mailto:')) {
+          website = href; break;
         }
       }
-
-      return {
-        name: name || '',
-        address: address || '',
-        rating: rating || '',
-        phone: phone || '',
-        website: website || ''
-      };
+      return { name, address, rating, phone, website };
     });
 
-    // Validate data
-    if (!data.name && !data.address && !data.phone && !data.website) {
-      throw new Error('No data extracted from page');
-    }
+    if (!data.name && !data.address && !data.phone && !data.website) throw new Error('No data extracted');
 
     data.url = url;
     return data;
 
   } catch (err) {
+    console.warn(`      ⚠️ Business scrape failed: ${name}: ${err.message}`);
     throw new Error(`Page scrape failed: ${err.message}`);
   } finally {
     await page.close();
   }
 }
 
-// Filter function (same as before)
+// --- Filters ---
+// function applyFilters(results, mustHave, ratings) {
+//    console.log("Filtering results:", results.length, mustHave, ratings);
+//   const fieldMap = { "Phone": "phone", "Address": "address", "Website": "website" };
+//   const passesMustHave = lead => !mustHave.length || mustHave.every(f => lead[fieldMap[f]] && lead[fieldMap[f]].trim().length>0);
+//   const passesRating = lead => !ratings.length || (lead.rating && ratings.some(r => Math.floor(parseFloat(lead.rating)) === parseInt(r.split(" ")[0])));
+//   const filtered = results.filter(r => r && passesMustHave(r) && passesRating(r));
+//    console.log("Filtered results:", filtered.length);
+//   return filtered;
+// }
 function applyFilters(results, mustHave, ratings) {
   const fieldMap = { "Phone": "phone", "Address": "address", "Website": "website" };
 
@@ -565,6 +533,7 @@ function applyFilters(results, mustHave, ratings) {
 
   return results.filter(lead => lead && passesMustHave(lead) && passesRating(lead));
 }
+
 
 app.post("/logout", (req, res) => {
   try {
@@ -980,6 +949,6 @@ app.post("/send-email", auth, async (req, res) => {
 
 
 app.listen(port, () => {
-      console.log('Server running');
-    });
+  console.log('Server running');
+});
 

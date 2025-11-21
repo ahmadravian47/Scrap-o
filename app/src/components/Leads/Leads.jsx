@@ -50,13 +50,13 @@ const SkeletonRow = () => (
 // ---------------------------------------------------------
 export default function Leads() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedLocations, setSelectedLocations] = useState(['United States']);
+  const [selectedLocations, setSelectedLocations] = useState([]);
   const [selectedRatings, setSelectedRatings] = useState([]);
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [progress, setProgress] = useState(0);
-const [status, setStatus] = useState('');
+  const [status, setStatus] = useState('');
 
   const locations = ['Address', 'Phone', 'Website'];
   const ratings = ['1 star', '2 stars', '3 stars', '4 stars', '5 stars'];
@@ -67,48 +67,67 @@ const [status, setStatus] = useState('');
     );
   };
 
-const handleSearch = async () => {
-  if (!searchQuery) return;
+  const handleSearch = async () => {
+    if (!searchQuery) return;
 
-  setLoading(true);
-  setHasSearched(true);
-  setProgress(0);
-  setStatus('Starting search...');
-
-  try {
-    // Use fetch with AbortController for better timeout handling
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 360000); // 6 minute timeout
-
-    const res = await fetch(`${import.meta.env.VITE_SERVER_URL}/scrape`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: searchQuery,
-        mustHave: selectedLocations,
-        ratings: selectedRatings
-      }),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-    
-    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-    
-    const data = await res.json();
-    setLeads(data.results || []);
-    
-  } catch (err) {
-    console.error('Error fetching leads:', err);
-    if (err.name === 'AbortError') {
-      alert('Request timed out. Please try a more specific search or fewer filters.');
-    }
-  } finally {
-    setLoading(false);
+    setLoading(true);
+    setHasSearched(true);
     setProgress(0);
-    setStatus('');
-  }
-};
+    setStatus('Starting search...');
+
+    try {
+      // Step 1: create the scrape job
+      const res = await fetch(`${import.meta.env.VITE_SERVER_URL}/scrape`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: searchQuery,
+          mustHave: selectedLocations,
+          ratings: selectedRatings
+        })
+      });
+
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+      const { jobId } = await res.json();
+      setStatus('Job started, scraping in progress...');
+
+      // Step 2: poll for results
+      const pollInterval = 30 * 1000; // 30 seconds
+
+      const pollJob = async () => {
+        try {
+          const statusRes = await fetch(`${import.meta.env.VITE_SERVER_URL}/scrape/status/${jobId}`);
+          if (!statusRes.ok) throw new Error(`Status check failed: ${statusRes.status}`);
+          const statusData = await statusRes.json();
+
+          if (statusData.status === 'pending') {
+            setStatus('Still scraping... please wait');
+            setTimeout(pollJob, pollInterval);
+          } else if (statusData.status === 'done') {
+            setLeads(statusData.results || []);
+            setLoading(false);
+            setStatus('Scraping complete!');
+          } else if (statusData.status === 'failed') {
+            alert('Scraping failed: ' + statusData.error);
+            setLoading(false);
+            setStatus('');
+          }
+        } catch (err) {
+          console.error('Error checking job status:', err);
+          setLoading(false);
+          setStatus('');
+        }
+      };
+
+      pollJob(); // start polling
+
+    } catch (err) {
+      console.error('Error fetching leads:', err);
+      setLoading(false);
+      setStatus('');
+    }
+  };
 
 
   // ---------------------------
