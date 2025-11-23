@@ -105,10 +105,21 @@ export default function Leads() {
             setStatus('Still scraping... please wait');
             setTimeout(pollJob, pollInterval);
           } else if (statusData.status === 'done') {
-            setLeads(statusData.results || []);
+            let results = statusData.results || [];
+
+            // Filter: remove entries missing all important fields
+            results = results.filter(lead =>
+              lead.phone ||
+              lead.address ||
+              lead.website ||
+              lead.rating
+            );
+
+            setLeads(results);
             setLoading(false);
             setStatus('Scraping complete!');
-          } else if (statusData.status === 'failed') {
+          }
+          else if (statusData.status === 'failed') {
             alert('Scraping failed: ' + statusData.error);
             setLoading(false);
             setStatus('');
@@ -226,6 +237,7 @@ export default function Leads() {
             </div>
           </div>
         </div>
+    
 
         {/* Download Buttons */}
         {hasSearched && leads.length > 0 && (
@@ -322,6 +334,7 @@ export default function Leads() {
                   <span className="text-gray-400 text-sm">—</span>
                 )}
               </div>
+
             </div>
           ))}
         </div>

@@ -25,6 +25,7 @@ const Imap = require("imap");
 const { simpleParser } = require("mailparser");
 
 
+
 require("./passport");
 
 const authRoutes = require("./routes/auth");
@@ -345,9 +346,9 @@ async function performScraping(query) {
     try {
       await page.waitForFunction(() => {
         return document.querySelector('a[href*="/place/"]') ||
-               document.querySelector('[role="feed"]') ||
-               document.querySelector('.hfpxzc') ||
-               document.querySelector('.Nv2PK');
+          document.querySelector('[role="feed"]') ||
+          document.querySelector('.hfpxzc') ||
+          document.querySelector('.Nv2PK');
       }, { timeout: 15000 });
       console.log("✅ Results appeared on page");
     } catch {
@@ -391,9 +392,9 @@ async function performScraping(query) {
           if (!href) return null;
           const fullUrl = href.startsWith('http') ? href : `https://www.google.com${href}`;
           const name = el.getAttribute('aria-label') ||
-                       el.querySelector('.qBF1Pd')?.textContent?.trim() ||
-                       el.closest('.Nv2PK')?.querySelector('.qBF1Pd')?.textContent?.trim() ||
-                       'Business';
+            el.querySelector('.qBF1Pd')?.textContent?.trim() ||
+            el.closest('.Nv2PK')?.querySelector('.qBF1Pd')?.textContent?.trim() ||
+            'Business';
           if (fullUrl.includes('/place/') && fullUrl.includes('google.com/maps')) return { name, url: fullUrl };
           return null;
         } catch { return null; }
@@ -452,63 +453,45 @@ async function performScraping(query) {
   }
 }
 
-// --- Scrape individual business page ---
+
 async function scrapeBusinessPage(context, name, url) {
   const page = await context.newPage();
   try {
-    console.log(`      🔹 Loading business page: ${name}`);
     const cleanUrl = url.split('&')[0] + '?hl=en';
     await page.goto(cleanUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
-    await Promise.race([
-      page.waitForSelector('.DUwDvf, h1, [aria-labelledby], .section-hero-header-title, [data-item-id]', { timeout: 5000 }),
-      page.waitForTimeout(2000)
-    ]);
 
     const data = await page.evaluate(() => {
       const getText = selector => document.querySelector(selector)?.textContent?.trim() || '';
-      const name = getText('.DUwDvf.fontHeadlineLarge') || getText('h1') || getText('[aria-labelledby]') || getText('.section-hero-header-title') || document.title.replace(' - Google Maps', '');
-      const address = getText('[data-item-id="address"] .Io6YTe') || getText('.rogA2c .Io6YTe') || getText('[aria-label*="Address"]') || getText('.AG25L .Io6YTe');
-      const rating = getText('.F7nice > span > span') || getText('[aria-label*="stars"]');
+      const name = getText('.DUwDvf.fontHeadlineLarge') || getText('h1') || document.title.replace(' - Google Maps', '');
+      const address = getText('[data-item-id="address"] .Io6YTe') || '';
+      const rating = getText('.F7nice > span > span') || '';
       let phone = '';
-      const phoneButton = document.querySelector('button[data-tooltip*="Phone"], button[aria-label*="Phone"]');
-      if (phoneButton) phone = (phoneButton.getAttribute('data-tooltip') || phoneButton.getAttribute('aria-label') || '').replace(/Phone:\s*/i,'').replace(/[^\d+]/g,'');
-      if (!phone) { const phoneLink = document.querySelector('a[href^="tel:"]'); if(phoneLink) phone = phoneLink.getAttribute('href').replace('tel:','').replace(/[^\d+]/g,''); }
-      if (!phone) { const phoneSection = document.querySelector('[data-item-id="phone"]'); if(phoneSection) phone = phoneSection.querySelector('.Io6YTe')?.textContent?.trim().replace(/[^\d+]/g,''); }
-      if (!phone) { const bodyText = document.body.textContent; const matches = bodyText.match(/(\+?[\d\s\-\(\)]{10,})/g); if(matches) { const likely = matches.filter(m=>m.replace(/\D/g,'').length>=10); if(likely.length>0) phone=likely[0].replace(/[^\d+]/g,''); } }
+      const phoneLink = document.querySelector('a[href^="tel:"]');
+      if (phoneLink) phone = phoneLink.getAttribute('href').replace('tel:', '').replace(/[^\d+]/g, '');
       let website = '';
       const websiteLinks = Array.from(document.querySelectorAll('a[href*="://"]'));
       for (const link of websiteLinks) {
-        const href = link.href;
-        if (href && !href.includes('google') && !href.includes('facebook.com/places') && !href.includes('tel:') && !href.includes('mailto:')) {
-          website = href; break;
+        if (link.href && !link.href.includes('google') && !link.href.includes('facebook.com')) {
+          website = link.href; break;
         }
       }
       return { name, address, rating, phone, website };
     });
 
-    if (!data.name && !data.address && !data.phone && !data.website) throw new Error('No data extracted');
-
+   
     data.url = url;
     return data;
 
   } catch (err) {
-    console.warn(`      ⚠️ Business scrape failed: ${name}: ${err.message}`);
+    console.warn(`⚠️ Business scrape failed: ${name}: ${err.message}`);
     throw new Error(`Page scrape failed: ${err.message}`);
   } finally {
     await page.close();
   }
 }
 
-// --- Filters ---
-// function applyFilters(results, mustHave, ratings) {
-//    console.log("Filtering results:", results.length, mustHave, ratings);
-//   const fieldMap = { "Phone": "phone", "Address": "address", "Website": "website" };
-//   const passesMustHave = lead => !mustHave.length || mustHave.every(f => lead[fieldMap[f]] && lead[fieldMap[f]].trim().length>0);
-//   const passesRating = lead => !ratings.length || (lead.rating && ratings.some(r => Math.floor(parseFloat(lead.rating)) === parseInt(r.split(" ")[0])));
-//   const filtered = results.filter(r => r && passesMustHave(r) && passesRating(r));
-//    console.log("Filtered results:", filtered.length);
-//   return filtered;
-// }
+
+
 function applyFilters(results, mustHave, ratings) {
   const fieldMap = { "Phone": "phone", "Address": "address", "Website": "website" };
 
