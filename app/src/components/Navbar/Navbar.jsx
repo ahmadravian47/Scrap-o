@@ -20,7 +20,7 @@ export default function Navbar() {
     };
 
     return (
-        <nav className="w-full bg-[#fafafa] pt-2 border-b">
+        <nav className="w-full bg-[#fafafa] pt-2">
             <div className="max-w-7xl mx-auto px-6 flex items-center h-16">
 
                 {/* Logo */}

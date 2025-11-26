@@ -1,0 +1,101 @@
+.hero-h1 {
+    color: #171717;
+    line-height: 3.8rem;
+}
+
+.hero-p {
+    color: #706f6fff;
+    width: 40%;
+    text-align: center;
+    margin: 1rem auto;
+}
+
+.hero-button {
+    padding: 0.75rem 1.5rem;
+}
+
+@media screen and (max-width:1270px) {
+    .hero-p {
+        width: 50%;
+    }
+}
+
+@media screen and (max-width:1005px) {
+    .hero-p {
+        width: 60%;
+    }
+}
+
+@media screen and (max-width:805px) {
+    .hero-h1 {
+        font-size: 48px;
+        line-height: 3rem;
+    }
+
+    .hero-p {
+        width: 70%;
+    }
+}
+
+@media screen and (max-width:723px) {
+    .hero-p {
+        width: 80%;
+    }
+}
+
+@media screen and (max-width:650px) {
+    .hero-p {
+        width: 85%;
+    }
+}
+
+@media screen and (max-width:600px) {
+    .hero-h1 {
+        font-size: 40px;
+        line-height: 2.8rem;
+    }
+
+    .hero-p {
+        width: 100%;
+        padding: 0;
+    }
+}
+
+@media screen and (max-width:432px) {
+    .hero-h1 {
+        font-size: 32px;
+        line-height: 2.4rem;
+    }
+
+    .hero-p {
+        font-size: 14px;
+    }
+
+}
+@media screen and (max-width:400px) {
+    .hero-button {
+        padding: 0.6rem 1.2rem;
+        font-size: 11px;
+    }
+}
+
+@media screen and (max-width:352px) {
+    .hero-h1 {
+        font-size: 28px;
+        line-height: 2rem;
+    }
+}
+
+@media screen and (max-width:352px) {
+    .hero-button {
+        padding: 0.4rem 0.8rem;
+        font-size: 11px;
+    }
+}
+
+@media screen and (max-width:300px) {
+    .hero-h1 {
+        font-size: 25px;
+        line-height: 2rem;
+    }
+}
