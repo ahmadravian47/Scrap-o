@@ -1,0 +1,67 @@
+@keyframes slideDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.25s ease-out forwards;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.25s ease-in forwards;
+}
+
+.hamburger {
+  width: 24px;
+  height: 18px;
+  position: relative;
+  cursor: pointer;
+}
+
+.hamburger span {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: black;
+  transition: 0.3s ease;
+}
+
+/* Bars */
+.hamburger span:nth-child(1) {
+  top: 0;
+}
+.hamburger span:nth-child(2) {
+  top: 8px;
+}
+.hamburger span:nth-child(3) {
+  top: 16px;
+}
+
+/* Become X */
+.hamburger.open span:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+.hamburger.open span:nth-child(2) {
+  transform: scaleX(0);
+}
+.hamburger.open span:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}

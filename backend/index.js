@@ -906,6 +906,7 @@ app.get("/get-sent-emails", auth, async (req, res) => {
 app.post("/send-email", auth, async (req, res) => {
   try {
     const { to, subject, body } = req.body;
+    console.log('sending email to ',to);
 
     if (!to || !subject || !body) {
       return res.status(400).json({ message: "Recipient, subject, and body are required" });
@@ -932,6 +933,6 @@ app.post("/send-email", auth, async (req, res) => {
 
 
 app.listen(port, () => {
-  console.log('Server running');
+  console.log('Server running and this is version5');
 });
 
