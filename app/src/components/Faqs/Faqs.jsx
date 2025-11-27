@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-// Using lucide-react for the chevron icon
+import './Faqs.css'
 
-// Mock data for the FAQs
+
 const faqData = [
   {
     question: "What exactly does Scrap-o do?",
@@ -30,7 +30,6 @@ const faqData = [
   },
 ];
 
-// Reusable Chevron Icon (mimicking the simple arrow down in the image)
 const ChevronDown = ({ className }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -92,16 +91,16 @@ const Faqs = () => {
   };
 
   return (
-    <div className="min-h-screen flex justify-center py-16 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex justify-center py-16 px-4 sm:px-6 lg:px-8 faq-parent">
       {/* Content Container - Mimics the centered, light gray card in the image */}
       <div className="w-full max-w-4xl p-8 sm:p-12">
 
         {/* Header Section */}
         <div className="text-center mb-10">
-          <h1 className="text-4xl sm:text-5xl text-gray-800 mb-4">
+          <h1 className="faq-h1 text-5xl text-gray-800 mb-4">
             FAQs
           </h1>
-          <p className="text-base text-gray-600 max-w-xl mx-auto">
+          <p className="text-base text-gray-600 max-w-xl mx-auto faq-p">
             Get answers to the most common questions about SCRAP-O.
           </p>
         </div>
