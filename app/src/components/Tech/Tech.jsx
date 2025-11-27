@@ -11,7 +11,7 @@ import Dots from '../Dots/Dots'
 
 export default function Tech() {
     return (
-        <div className='mt-12' style={{ width: '100%' }}>
+        <div className='tech-parent mt-12'>
             <h5 className='text-sm text-gray-400'>Built with modern
                 <span className='text-gray-900 font-semibold'> Tech Stack</span>
             </h5>
