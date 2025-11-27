@@ -1,14 +1,17 @@
 .features_parent {
     display: flex;
     border: 1px solid rgb(231, 231, 231);
-    width: 80%;
+    width: 1240px;
     margin: 0 auto;
     border-radius: 11px;
     margin-top: 4rem;
     align-items: center;
 }
 
-.features_parent .left {}
+.feature-h1 {
+    color: #171717;
+    line-height: 3.8rem
+}
 
 .features_parent .left .box {
     padding: 4rem;
@@ -19,7 +22,8 @@
     border: 1px solid #e0dfdf;
     border-radius: 10px;
 }
-.features_parent .left .box:hover{
+
+.features_parent .left .box:hover {
     background-color: white;
 }
 
@@ -33,15 +37,118 @@
     color: rgb(158, 158, 158);
 }
 
-.features_parent .right {
 
-}
-.features_parent .right .image{
+.features_parent .right .image {
     width: 90%;
     margin: 0 auto;
 }
-.features_parent .right .image img{
+
+.features_parent .right .image img {
     width: 100%;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
     border-radius: 12px;
+}
+
+@media screen and (max-width:805px) {
+    .feature-h1 {
+        font-size: 36px;
+        line-height: 2.7rem;
+        margin-top: 4rem;
+    }
+}
+
+@media screen and (max-width:600px) {
+    .feature-h1 {
+        font-size: 32px;
+    }
+}
+
+@media screen and (max-width:450px) {
+    .feature-h1 {
+        font-size: 24px;
+        line-height: 2.4rem;
+    }
+}
+
+@media screen and (max-width:360px) {
+    .feature-h1 {
+        font-size: 22px;
+    }
+}
+
+@media screen and (max-width:320px) {
+    .feature-h1 {
+        font-size: 20px;
+    }
+}
+
+@media screen and (max-width:1280px) {
+    .features_parent {
+        flex-direction: column;
+        width: 80%;
+    }
+
+    .features_parent .left {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        margin-top: 0rem;
+    }
+
+    .features_parent .left .box {
+        width: 33%;
+        padding: 2rem 2rem;
+    }
+
+    .features_parent .right {
+        margin-top: 3rem;
+    }
+
+    .features_parent .right .image {
+        width: 100%;
+    }
+}
+
+@media screen and (max-width:800px) {
+    .features_parent .left .box {
+        width: 33%;
+        padding: 1rem 1rem;
+    }
+}
+
+@media screen and (max-width:650px) {
+    .features_parent {
+        flex-direction: column-reverse;
+        padding-top: 0;
+        margin-top: 2rem;
+    }
+
+    .features_parent .right {
+        margin-top: 0;
+    }
+
+    .features_parent .left {
+        flex-direction: column;
+        margin-top: 1.6rem;
+    }
+
+    .features_parent .left .box {
+        width: 100%;
+    }
+    .feature-h5{
+        font-size: 13px;
+    }
+    .features_parent .left .box h3{
+        font-size: 13px;
+    }
+        .features_parent .left .box p{
+        font-size: 12px;
+    }
+}
+
+@media screen and (max-width:500px) {
+    .features_parent {
+        width: 90%;
+    }
+
 }

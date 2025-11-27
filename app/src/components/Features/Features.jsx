@@ -5,10 +5,10 @@ import right_img from './features.png'
 export default function Features() {
   return (
     <div style={{width:'100%'}}>
-      <h1 className='mt-24 text-5xl' style={{ color: '#171717', lineHeight: '3.8rem' }}>
+      <h1 className='feature-h1 mt-24 text-5xl'>
         Why founders love SCRAP-O?
       </h1>
-      <h5 className='text-base mt-2' style={{color: '#706f6fff'}}>Find leads. Contact them. Close deals. — All in one place.</h5>
+      <h5 className='text-base mt-2 feature-h5' style={{color: '#706f6fff'}}>Find leads. Contact them. Close deals. — All in one place.</h5>
       <div className="features_parent">
         <div className="left">
           <div className="box">
