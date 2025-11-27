@@ -1,5 +1,5 @@
 import React from "react";
-import { Linkedin } from "lucide-react";
+import { Linkedin, Twitter, Mail } from "lucide-react";
 
 // Link component helper
 const FooterLink = ({ href, children }) => (
@@ -11,6 +11,7 @@ const FooterLink = ({ href, children }) => (
   </a>
 );
 
+// Social Link component helper
 const SocialLink = ({ href, icon: Icon }) => (
   <a
     href={href}
@@ -22,24 +23,22 @@ const SocialLink = ({ href, icon: Icon }) => (
   </a>
 );
 
-const PeecAIFooter = () => {
+const ScrapOFooter = () => {
   return (
-    <footer className="w-full bg-black text-white font-[Inter] border-t border-gray-900">
-      <div className="max-w-7xl mx-auto px-6 sm:px-8 py-16">
-        
-        {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12 text-left">
+    <footer className="w-full bg-gray-950 text-white font-[Inter] border-t border-gray-800">
+      <div className="max-w-6xl mx-auto px-6 sm:px-8 py-16">
 
-          {/* Branding */}
-          <div>
+        {/* Grid for main links - 2 columns on small, 3 columns on large */}
+        <div className="flex gap-12 text-left" style={{justifyContent:'space-between'}}>
+
+          {/* Branding & Description */}
+          <div className="col-span-2 md:col-span-1">
             <div className="flex items-center space-x-2 mb-4">
-             
-              <span className="text-3xl font-extrabold tracking-tight">
+              <span className="text-3xl font-extrabold tracking-tight text-white">
                 Scrap-o
               </span>
             </div>
-
-            <p className="text-gray-400 text-sm leading-relaxed max-w-xs">
+            <p className="text-gray-400 text-sm leading-relaxed max-w-sm">
               Scrap-o helps you find local business leads and email them instantly — all in one dashboard.
             </p>
           </div>
@@ -52,42 +51,26 @@ const PeecAIFooter = () => {
             <FooterLink href="#home">Home</FooterLink>
             <FooterLink href="#docs">Docs</FooterLink>
             <FooterLink href="#pricing">Pricing</FooterLink>
-            <FooterLink href="#careers">Careers</FooterLink>
+            <FooterLink href="#features">Features</FooterLink>
           </div>
 
-          {/* Company */}
-          <div>
-            <h3 className="text-sm font-semibold mb-4 text-white tracking-wider">
-              COMPANY
-            </h3>
-            <FooterLink href="#about">About Us</FooterLink>
-            <FooterLink href="#blog">Blog</FooterLink>
-            <FooterLink href="#contact">Contact</FooterLink>
-          </div>
-
-          {/* Social */}
-          <div>
-            <h3 className="text-sm font-semibold mb-4 text-white tracking-wider">
-              CONNECT
-            </h3>
-            <div className="flex space-x-4">
-              <SocialLink href="https://linkedin.com" icon={Linkedin} />
-            </div>
-          </div>
         </div>
       </div>
 
       {/* Bottom legal bar */}
       <div className="border-t border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 sm:px-8 py-6 text-xs text-gray-500">
+      
 
-          <p className="mb-1">© 2025 Scrap-o. All rights reserved.</p>
+          {/* Copyright */}
+          <p className="mb-3 sm:mb-0 text-gray-400" style={{textAlign:'center',fontSize:'14px',padding:'0.7rem 0'}}>
+            &copy; 2025 Scrap-o. All rights reserved.
+          </p>
 
          
         </div>
-      </div>
+     
     </footer>
   );
 };
 
-export default PeecAIFooter;
+export default ScrapOFooter;
