@@ -1,0 +1,39 @@
+.box-parent-div {
+    margin-top: -5rem;
+    z-index: 2;
+    border-top: 1px solid #f4f2f2ff;
+    box-shadow: 0px 25px 60px 20px rgba(128, 128, 128, 0.28);
+}
+
+.box-text {
+    min-height: 50px;
+    line-height: 1.5;
+}
+
+@media screen and (max-width:800px) {
+    .box-parent-div {
+        width: 80%;
+        padding: 0.7rem 1.4rem;
+        margin-top: -3rem;
+    }
+}
+
+@media screen and (max-width:450px) {
+    .box-parent-div {
+        width: 84%;
+        padding: 0.7rem 1.4rem;
+        margin-top: -2rem;
+    }
+
+    .box-text {
+        font-size: 12px;
+    }
+}
+
+@media screen and (max-width:350px) {
+    .box-parent-div {
+        width: 94%;
+        padding: 0.7rem 1.4rem;
+        margin-top: -1rem;
+    }
+}
