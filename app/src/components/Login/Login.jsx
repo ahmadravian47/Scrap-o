@@ -3,6 +3,7 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { Link,useNavigate } from "react-router-dom";
 import google_icon from './search.png';
 import logo from './logo.png';
+import './Login.css'
 
 const Login = () => {
     const [emailOrPhone, setEmailOrPhone] = useState('');
@@ -34,14 +35,14 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center pt-20">
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center pt-20 login-parent">
             {/* --- Logo --- */}
             <div className="logo mb-5">
                 <img src={logo} alt="Logo" />
             </div>
 
             {/* --- Login Form --- */}
-            <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+            <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-gray-200 login-card">
                 <p className="text-center text-sm text-gray-500 mb-6 px-4">
                     Enter your credentials here
                 </p>
@@ -116,7 +117,7 @@ const Login = () => {
                     <p className="text-gray-500 text-sm">Continue With Google</p>
                 </button>
 
-                <p className="mt-6 text-sm text-gray-600 font-medium flex justify-center text-center">
+                <p className="mt-6 text-sm text-gray-600 font-medium text-center">
                     New to Scrap-o? You can
                     <Link to="/signup" className="text-gray-900 underline ml-1">
                         Join us

@@ -1,8 +1,8 @@
 @media screen and (max-width:600px) {
-    .signup-parent{
+    .login-parent{
         background-color: white;
     }
-    .signup-card{
+    .login-card{
         border: none;
         box-shadow: none;
     }

@@ -3,6 +3,7 @@ import { Mail, Lock, Eye, EyeOff, Smartphone } from 'lucide-react';
 import { Link, useNavigate } from "react-router-dom";
 import google_icon from './search.png'
 import logo from './logo.png'
+import './Signup.css'
 
 // Component to render the DeepSeek-like login form
 const Signup = () => {
@@ -36,14 +37,14 @@ const Signup = () => {
 
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center pt-20">
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center pt-20 signup-parent">
             {/* --- Logo --- */}
             <div className="logo mb-3">
                 <img src={logo} alt="" />
             </div>
 
             {/* --- Signup Form Card --- */}
-            <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-gray-200">
+            <div className="w-full max-w-md bg-white p-8 rounded-xl shadow-lg border border-gray-200 signup-card">
                 <p className="text-center text-sm text-gray-500 mb-6 px-4">
                     Create your account
                 </p>
@@ -132,11 +133,11 @@ const Signup = () => {
                     <img src={google_icon} style={{ width: '14px', marginRight: '0.5rem' }} alt="Google" />
                     <p className='text-gray-500 text-sm'>Continue With Google</p>
                 </button>
-                <p className="mt-6 text-sm text-gray-600 font-medium flex justify-center text-center">
-                    Already a member of Scrap-o? You can
+                <p className="mt-6 text-sm text-gray-600 font-medium  text-center">
+                    Already a member of Scrap-o? You can login
 
                     <Link to="/login" className="text-gray-900 underline ml-1">
-                        login here
+                        here
                     </Link>
                 </p>
 
