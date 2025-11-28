@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   X,
 } from "lucide-react";
+import './Email.css'
 
 // -----------------------------------------------
 // SKELETON LOADER
@@ -42,7 +43,7 @@ const TicketRow = ({ ticket }) => {
         <Mail className="w-5 h-5 text-gray-500" />
       </div>
       <div className="flex-grow min-w-0">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between emailbody-head">
           <div className="flex flex-col sm:flex-row sm:items-baseline sm:space-x-3">
             <p className="font-semibold text-gray-800 truncate">{ticket.to}</p>
             <p className="text-sm text-gray-500 truncate">{ticket.subject}</p>
@@ -67,7 +68,7 @@ const TicketRow = ({ ticket }) => {
 // HEADER (Moved outside main component)
 // -----------------------------------------------
 const Header = ({ searchTerm, setSearchTerm, setIsComposeOpen, handleBulkUpload }) => (
-  <header className="flex items-center justify-between p-4 border-b border-gray-300">
+  <header className="flex items-center justify-between p-4 border-b border-gray-300 email-head">
     <h1 className="text-xl font-medium text-gray-800">Sent Emails</h1>
 
     <div className="flex items-center space-x-4 bg-[#fafafa]">
@@ -343,7 +344,7 @@ const Email = () => {
   // -----------------------------------------------
   return (
     <div className="min-h-screen font-sans text-gray-800">
-      <div className="mx-auto w-full max-w-7xl shadow-lg rounded-xl border">
+      <div className="mx-auto w-full max-w-7xl shadow-lg rounded-xl border email-parent">
         
         <Header
           searchTerm={searchTerm}

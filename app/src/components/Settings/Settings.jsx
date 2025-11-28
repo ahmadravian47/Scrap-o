@@ -213,7 +213,7 @@ export default function EmailSettings() {
             User Settings
           </h1>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 top-settings-button">
             <button
               onClick={onSave}
               disabled={saving}

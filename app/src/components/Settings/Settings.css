@@ -306,3 +306,10 @@
     margin-top: 2px !important;
   }
 }
+
+@media screen and (max-width:500px) {
+  .top-settings-button{
+    display: none;
+  }
+  
+}

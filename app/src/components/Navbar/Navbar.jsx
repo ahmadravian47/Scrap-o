@@ -24,7 +24,9 @@ export default function Navbar() {
             <div className="max-w-7xl mx-auto px-6 flex items-center h-16">
 
                 {/* Logo */}
-                <img src={logo} alt="logo" className="h-8" />
+                <Link to="/">
+                    <img src={logo} alt="logo" className="h-8 cursor-pointer" />
+                </Link>
 
                 {/* Desktop Nav */}
                 <div className="hidden sm:flex items-center gap-4 text-gray-500 text-sm ml-auto">

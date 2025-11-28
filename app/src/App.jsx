@@ -8,6 +8,9 @@ import Signup from "./components/Signup/Signup";
 import Dashboard from "./components/Dashboard/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute.jsx";
 import GuestRoute from "./components/ProtectedRoute/GuestRoute.jsx";
+import Pricing from "./components/Pricing/Pricing.jsx";
+import Docs from "./components/Docs/Docs.jsx";
+import Careers from "./components/Careers/Careers.jsx";
 
 
 function App() {
@@ -33,6 +36,9 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/docs" element={<Docs />} />
+        <Route path="/careers" element={<Careers />} />
       </Routes>
     </div>
   );
